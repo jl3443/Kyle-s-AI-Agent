@@ -1,12 +1,338 @@
 // DeepSeek LLM 集成到腾讯文档的Chrome扩展
 // 主要功能：在腾讯文档右侧注入AI对话框，调用DeepSeek API
 
+// 表格编辑器类 - 专门处理17字段表格
+class TableEditor {
+    constructor() {
+        // 基于您的表格结构定义字段
+        this.editableFields = [
+            '公司名称', '参考价值', '最后更新时间', '应用场景', '组织/环境',
+            '一句点评', '成立时间', '成立国家', '发展阶段', '业务模式',
+            '服务连接', '业务简介', 'AI相关功能实况', '公司参考资料/链接',
+            '使用链接/途径', '公司类别', '最后编辑新人'
+        ];
+        
+        // 字段优先级（数字越小优先级越高）
+        this.fieldPriority = {
+            '公司名称': 1, '一句点评': 2, '成立时间': 3, '成立国家': 4,
+            '发展阶段': 5, '业务模式': 6, '业务简介': 7, 'AI相关功能实况': 8,
+            '参考价值': 9, '应用场景': 10, '公司类别': 11, '使用链接/途径': 12,
+            '服务连接': 13, '公司参考资料/链接': 14, '组织/环境': 15, 
+            '最后更新时间': 16, '最后编辑新人': 17
+        };
+        
+        this.tencentDocsAdapter = new TencentDocsAdapter();
+    }
+
+    // 智能识别缺失字段
+    identifyMissingFields(tableData) {
+        const missingFields = [];
+        
+        if (!tableData.tables || tableData.tables.length === 0) {
+            return missingFields;
+        }
+
+        tableData.tables.forEach((table, tableIndex) => {
+            table.rows.forEach((row, rowIndex) => {
+                row.forEach((cellValue, colIndex) => {
+                    const headerName = table.headers[colIndex] || `列${colIndex + 1}`;
+                    
+                    // 检查是否为空值或占位符
+                    const isEmpty = !cellValue || 
+                                   cellValue.trim() === '' || 
+                                   cellValue.trim() === '-' ||
+                                   cellValue.trim() === '待补充' ||
+                                   cellValue.trim() === '...' ||
+                                   cellValue.trim() === 'TBD' ||
+                                   cellValue.trim() === '○';
+                    
+                    if (isEmpty && this.editableFields.includes(headerName)) {
+                        const companyContext = this.getRowContext(table, rowIndex);
+                        
+                        // 只有在有公司名称的情况下才添加缺失字段
+                        if (companyContext['公司名称'] && companyContext['公司名称'].trim()) {
+                            missingFields.push({
+                                tableIndex,
+                                rowIndex,
+                                colIndex,
+                                fieldName: headerName,
+                                currentValue: cellValue,
+                                companyContext: companyContext,
+                                priority: this.fieldPriority[headerName] || 99
+                            });
+                        }
+                    }
+                });
+            });
+        });
+
+        // 按优先级排序
+        return missingFields.sort((a, b) => a.priority - b.priority);
+    }
+
+    // 获取行的上下文信息
+    getRowContext(table, rowIndex) {
+        const context = {};
+        const row = table.rows[rowIndex];
+        
+        table.headers.forEach((header, index) => {
+            if (row[index] && row[index].trim() && row[index].trim() !== '-') {
+                context[header] = row[index].trim();
+            }
+        });
+        
+        return context;
+    }
+
+    // 查找单元格DOM元素
+    findCellForField(missingField) {
+        const tableElements = document.querySelectorAll('table');
+        if (tableElements[missingField.tableIndex]) {
+            const table = tableElements[missingField.tableIndex];
+            const rows = table.querySelectorAll('tr');
+            if (rows[missingField.rowIndex + 1]) { // +1 因为第一行通常是表头
+                const cells = rows[missingField.rowIndex + 1].querySelectorAll('td, th');
+                return cells[missingField.colIndex];
+            }
+        }
+        return null;
+    }
+
+    // 检查单元格是否可编辑
+    isCellEditable(cellElement) {
+        if (!cellElement) return false;
+        
+        return cellElement.contentEditable === 'true' || 
+               cellElement.tagName === 'INPUT' ||
+               cellElement.tagName === 'TEXTAREA' ||
+               cellElement.querySelector('input, textarea, [contenteditable="true"]') !== null;
+    }
+
+    // 填充单元格内容
+    async fillCell(cellElement, content) {
+        if (!cellElement || !content) return false;
+
+        try {
+            return await this.tencentDocsAdapter.editCell(cellElement, content);
+        } catch (error) {
+            console.error('填充单元格失败:', error);
+            return false;
+        }
+    }
+}
+
+// 腾讯文档适配器类
+class TencentDocsAdapter {
+    constructor() {
+        this.docType = this.detectDocumentType();
+        console.log('检测到文档类型:', this.docType);
+    }
+
+    detectDocumentType() {
+        if (document.querySelector('.ql-editor, .sheets-container')) return 'spreadsheet';
+        if (document.querySelector('.docs-texteventtarget-iframe, .kix-appview-editor')) return 'document';
+        if (document.querySelector('.online-table, .table-container')) return 'table';
+        return 'general';
+    }
+
+    // 获取可编辑单元格
+    getEditableCells() {
+        const selectors = {
+            'spreadsheet': [
+                '.ql-editor [data-cell]',
+                '.cell-input',
+                '.sheets-cell',
+                'td[contenteditable="true"]'
+            ],
+            'document': [
+                'td[contenteditable="true"]',
+                '.docs-table-cell',
+                '.kix-table-cell',
+                'table td'
+            ],
+            'general': [
+                'td[contenteditable="true"]',
+                'table td',
+                '[data-cell]',
+                '.editable-cell'
+            ]
+        };
+
+        const cellSelectors = selectors[this.docType] || selectors['general'];
+        let cells = [];
+
+        for (const selector of cellSelectors) {
+            const foundCells = document.querySelectorAll(selector);
+            if (foundCells.length > 0) {
+                cells = [...foundCells];
+                console.log(`找到 ${cells.length} 个可编辑单元格`);
+                break;
+            }
+        }
+
+        return cells;
+    }
+
+    // 编辑单元格内容
+    async editCell(cellElement, newContent) {
+        if (!cellElement || !newContent) return false;
+
+        try {
+            console.log('开始编辑单元格:', newContent);
+
+            // 聚焦到单元格
+            cellElement.focus();
+            cellElement.click();
+
+            // 等待确保单元格进入编辑状态
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // 根据元素类型选择编辑方法
+            if (cellElement.contentEditable === 'true') {
+                cellElement.textContent = newContent;
+                const inputEvent = new Event('input', { bubbles: true });
+                cellElement.dispatchEvent(inputEvent);
+            } else if (cellElement.tagName === 'INPUT' || cellElement.tagName === 'TEXTAREA') {
+                cellElement.value = newContent;
+                const changeEvent = new Event('change', { bubbles: true });
+                cellElement.dispatchEvent(changeEvent);
+            } else {
+                // 查找内部可编辑元素
+                const editableChild = cellElement.querySelector('input, textarea, [contenteditable="true"]');
+                if (editableChild) {
+                    if (editableChild.contentEditable === 'true') {
+                        editableChild.textContent = newContent;
+                    } else {
+                        editableChild.value = newContent;
+                    }
+                    const event = new Event('input', { bubbles: true });
+                    editableChild.dispatchEvent(event);
+                } else {
+                    cellElement.textContent = newContent;
+                }
+            }
+
+            // 模拟Enter键确认
+            const enterEvent = new KeyboardEvent('keydown', { 
+                key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true 
+            });
+            cellElement.dispatchEvent(enterEvent);
+
+            // 失去焦点
+            cellElement.blur();
+
+            console.log('单元格编辑完成');
+            return true;
+
+        } catch (error) {
+            console.error('编辑单元格失败:', error);
+            return false;
+        }
+    }
+}
+
 class DeepSeekAssistant {
     constructor(apiKey) {
         this.apiKey = apiKey;
         this.apiUrl = 'https://api.deepseek.com/v1/chat/completions';
         this.conversationHistory = [];
         this.isInitialized = false;
+        
+        // 新增：表格编辑功能
+        this.tableEditor = new TableEditor();
+        this.pendingChanges = [];
+        
+        // 费用保护机制
+        this.apiCallCount = 0;
+        this.maxDailyApiCalls = 10; // 每天最多10次API调用
+        
+        // 针对您的表格字段定义补全规则
+        this.fieldCompletionRules = {
+            '公司名称': { 
+                required: true, 
+                prompt: '根据上下文信息，提供准确的公司名称',
+                maxLength: 50
+            },
+            '参考价值': { 
+                required: true, 
+                prompt: '评估该公司的参考价值，从以下选项中选择',
+                options: ['✓', '高', '中', '低', '○']
+            },
+            '最后更新时间': { 
+                required: false, 
+                prompt: '提供最后更新时间，格式为YYYY/MM/DD',
+                validation: (value) => /\d{4}\/\d{1,2}\/\d{1,2}/.test(value)
+            },
+            '应用场景': { 
+                required: true, 
+                prompt: '判断应用场景的适用性',
+                options: ['✓', '○', '适用', '不适用']
+            },
+            '组织/环境': { 
+                required: false, 
+                prompt: '描述公司的组织结构或运营环境，简洁明了',
+                maxLength: 100
+            },
+            '一句点评': { 
+                required: true, 
+                prompt: '用一句话点评该公司的核心特点、优势或创新点',
+                maxLength: 50
+            },
+            '成立时间': { 
+                required: true, 
+                prompt: '提供公司成立年份，格式为YYYY年',
+                validation: (value) => /\d{4}/.test(value)
+            },
+            '成立国家': { 
+                required: true, 
+                prompt: '提供公司成立的国家或地区',
+                options: ['美国', '中国', '英国', '德国', '加拿大', '新加坡', '日本', '韩国', '法国', '其他']
+            },
+            '发展阶段': { 
+                required: true, 
+                prompt: '判断公司当前发展阶段',
+                options: ['种子轮', 'Pre-A', 'A轮', 'B轮', 'C轮', 'D轮', '上市', '成熟期', '初创期']
+            },
+            '业务模式': { 
+                required: true, 
+                prompt: '判断公司的主要业务模式',
+                options: ['To B', 'To C', 'To B/To C', 'B2B', 'B2C', 'B2B2C', 'SaaS', '平台型']
+            },
+            '服务连接': { 
+                required: false, 
+                prompt: '提供公司官网链接，格式为完整的https://网址',
+                validation: (value) => /^https?:\/\//.test(value)
+            },
+            '业务简介': { 
+                required: true, 
+                prompt: '简要描述公司主营业务和核心产品服务',
+                maxLength: 150
+            },
+            'AI相关功能实况': { 
+                required: true, 
+                prompt: '详细描述该公司的AI技术应用、AI产品功能或AI解决方案',
+                maxLength: 200
+            },
+            '公司参考资料/链接': { 
+                required: false, 
+                prompt: '提供公司相关的参考资料链接、新闻报道或研究报告',
+                validation: (value) => /^https?:\/\//.test(value) || value.includes('文档') || value.includes('报告')
+            },
+            '使用链接/途径': { 
+                required: true, 
+                prompt: '说明如何使用该公司的产品或服务，包括注册方式、使用步骤等',
+                maxLength: 100
+            },
+            '公司类别': { 
+                required: true, 
+                prompt: '对公司进行分类',
+                options: ['AI科技', '金融科技', '数据分析', '云计算', '企业服务', '消费科技', '教育科技', '医疗科技', '其他']
+            },
+            '最后编辑新人': { 
+                required: false, 
+                prompt: '记录最后编辑人员信息'
+            }
+        };
     }
 
     // 初始化AI助手界面
@@ -53,12 +379,39 @@ class DeepSeekAssistant {
                     <option value="deepseek-reasoner">🧠 DeepSeek-V3.1 Thinking Mode (费用高)</option>
                 </select>
             </div>
+            
+            <!-- 新增：表格智能助手功能区 -->
+            <div class="ai-table-actions">
+                <h4>📊 表格智能助手</h4>
+                <div class="action-buttons">
+                    <button id="analyze-table-btn" class="ai-btn ai-btn-primary">
+                        🔍 分析表格
+                    </button>
+                    <button id="auto-fill-btn" class="ai-btn ai-btn-success">
+                        🔄 智能补全
+                    </button>
+                    <button id="preview-changes-btn" class="ai-btn ai-btn-secondary" disabled>
+                        👀 预览更改
+                    </button>
+                    <button id="apply-changes-btn" class="ai-btn ai-btn-warning" disabled>
+                        ✅ 应用更改
+                    </button>
+                </div>
+                <div id="table-status" class="table-status">就绪</div>
+                <div id="api-usage" class="api-usage">今日API调用: 0/10</div>
+            </div>
             <div class="ai-chat-container">
                 <div class="ai-messages" id="ai-messages">
                     <div class="ai-message assistant">
-                        <p>👋 您好！我是DeepSeek AI智能助手，可以帮您分析任何网页内容。</p>
-                        <p>我可以：分析页面数据、回答问题、提供建议、解释内容等。</p>
-                        <p>请告诉我您想了解什么？</p>
+                        <p>👋 您好！我是Kyle's AI Agent，现在支持智能表格操作！</p>
+                        <p>🎯 新功能：</p>
+                        <ul>
+                            <li>🔍 智能分析表格内容</li>
+                            <li>🔄 自动补全缺失信息</li>
+                            <li>👀 预览所有更改</li>
+                            <li>✅ 一键应用修改</li>
+                        </ul>
+                        <p>请告诉我您想了解什么，或点击表格助手按钮开始！</p>
                     </div>
                 </div>
                 <div class="ai-thinking-indicator" id="ai-thinking" style="display: none;">
@@ -381,6 +734,138 @@ class DeepSeekAssistant {
                 background: #dc3545;
                 color: white;
             }
+
+            /* 表格智能助手样式 */
+            .ai-table-actions {
+                padding: 16px;
+                border-bottom: 1px solid #e0e0e0;
+                background: #f0f8ff;
+            }
+
+            .ai-table-actions h4 {
+                margin: 0 0 12px 0;
+                font-size: 14px;
+                color: #333;
+                font-weight: 600;
+            }
+
+            .action-buttons {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+
+            .ai-btn {
+                padding: 8px 12px;
+                border: none;
+                border-radius: 6px;
+                font-size: 12px;
+                cursor: pointer;
+                transition: all 0.2s;
+                font-weight: 500;
+            }
+
+            .ai-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .ai-btn-primary {
+                background: #007bff;
+                color: white;
+            }
+
+            .ai-btn-primary:hover:not(:disabled) {
+                background: #0056b3;
+            }
+
+            .ai-btn-success {
+                background: #28a745;
+                color: white;
+            }
+
+            .ai-btn-success:hover:not(:disabled) {
+                background: #1e7e34;
+            }
+
+            .ai-btn-secondary {
+                background: #6c757d;
+                color: white;
+            }
+
+            .ai-btn-secondary:hover:not(:disabled) {
+                background: #545b62;
+            }
+
+            .ai-btn-warning {
+                background: #ffc107;
+                color: #212529;
+            }
+
+            .ai-btn-warning:hover:not(:disabled) {
+                background: #e0a800;
+            }
+
+            .table-status {
+                font-size: 12px;
+                color: #666;
+                padding: 6px 10px;
+                background: #fff;
+                border-radius: 4px;
+                border: 1px solid #ddd;
+                text-align: center;
+            }
+
+            .table-status.success {
+                background: #d4edda;
+                color: #155724;
+                border-color: #c3e6cb;
+            }
+
+            .table-status.warning {
+                background: #fff3cd;
+                color: #856404;
+                border-color: #ffeaa7;
+            }
+
+            .table-status.error {
+                background: #f8d7da;
+                color: #721c24;
+                border-color: #f5c6cb;
+            }
+
+            .ai-messages ul {
+                margin: 8px 0;
+                padding-left: 20px;
+            }
+
+            .ai-messages li {
+                margin: 4px 0;
+            }
+
+            .api-usage {
+                font-size: 11px;
+                color: #666;
+                padding: 4px 8px;
+                background: #f8f9fa;
+                border-radius: 4px;
+                border: 1px solid #e9ecef;
+                text-align: center;
+                margin-top: 8px;
+            }
+
+            .api-usage.warning {
+                background: #fff3cd;
+                color: #856404;
+                border-color: #ffeaa7;
+            }
+
+            .api-usage.danger {
+                background: #f8d7da;
+                color: #721c24;
+                border-color: #f5c6cb;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -424,6 +909,28 @@ class DeepSeekAssistant {
             toggleBtn.addEventListener('click', () => {
                 this.toggleSidebar();
             });
+        }
+
+        // 新增：表格智能助手按钮事件
+        const analyzeBtn = document.getElementById('analyze-table-btn');
+        const autoFillBtn = document.getElementById('auto-fill-btn');
+        const previewBtn = document.getElementById('preview-changes-btn');
+        const applyBtn = document.getElementById('apply-changes-btn');
+
+        if (analyzeBtn) {
+            analyzeBtn.addEventListener('click', () => this.analyzeTable());
+        }
+
+        if (autoFillBtn) {
+            autoFillBtn.addEventListener('click', () => this.autoFillTable());
+        }
+
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => this.previewChanges());
+        }
+
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => this.applyChanges());
         }
 
         // 监听表格变化（自动分析）
@@ -560,7 +1067,17 @@ class DeepSeekAssistant {
     }
 
     // 调用DeepSeek API
-    async callDeepSeekAPI(userMessage, tableData, model = 'deepseek-reasoner') {
+    async callDeepSeekAPI(userMessage, tableData, model = 'deepseek-chat') {
+        // 费用保护检查
+        if (this.apiCallCount >= this.maxDailyApiCalls) {
+            const errorMessage = `⚠️ 今日API调用已达上限 (${this.maxDailyApiCalls}次)，为避免费用过高已自动停止。\n\n如需继续使用，请明天再试或联系管理员调整限制。`;
+            return { content: errorMessage, suggestions: [] };
+        }
+        
+        this.apiCallCount++;
+        console.log(`📊 API调用计数: ${this.apiCallCount}/${this.maxDailyApiCalls}`);
+        this.updateApiUsage();
+        
         // 生成动态知识库上下文
         let knowledgeContext = '';
         if (window.knowledgeBase) {
@@ -570,12 +1087,7 @@ class DeepSeekAssistant {
         const messages = [
             {
                 role: "system",
-                content: `你是金融AI产品案例库助手。简洁回答用户问题，分析页面内容。
-
-当前页面：${tableData.title}
-数据：${JSON.stringify(tableData).substring(0, 200)}...
-
-请用中文简洁回答，不超过200字。`
+                content: `你是AI助手。简洁回答，不超过50字。`
             },
             ...this.conversationHistory,
             {
@@ -601,7 +1113,7 @@ class DeepSeekAssistant {
                     model: model,
                     messages: messages,
                     temperature: 0.7,
-                    max_tokens: model === 'deepseek-reasoner' ? 800 : 500  // 大幅降低token限制节省费用
+                    max_tokens: model === 'deepseek-reasoner' ? 200 : 100  // 严格限制token避免费用过高
                 })
             });
             
@@ -756,7 +1268,11 @@ class DeepSeekAssistant {
         const messagesContainer = document.getElementById('ai-messages');
         const messageDiv = document.createElement('div');
         messageDiv.className = `ai-message ${role}`;
-        messageDiv.textContent = content;
+        
+        // 支持换行和简单格式
+        const formattedContent = content.replace(/\n/g, '<br>');
+        messageDiv.innerHTML = formattedContent;
+        
         messagesContainer.appendChild(messageDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -875,6 +1391,390 @@ class DeepSeekAssistant {
         } catch (error) {
             console.error('自动建议失败:', error);
         }
+    }
+
+    // 新增：分析表格方法
+    async analyzeTable() {
+        this.updateStatus('正在分析表格...', 'warning');
+        console.log('🔍 开始分析表格');
+
+        try {
+            const tableData = this.extractTableData();
+            
+            if (!tableData.tables || tableData.tables.length === 0) {
+                this.updateStatus('未找到表格数据', 'error');
+                this.addMessage('❌ 未在当前页面找到表格。请确保页面包含表格数据。', 'assistant');
+                return;
+            }
+
+            const missingFields = this.tableEditor.identifyMissingFields(tableData);
+            
+            // 统计信息
+            const totalRows = tableData.tables.reduce((sum, table) => sum + table.rows.length, 0);
+            const totalCells = tableData.tables.reduce((sum, table) => sum + (table.headers.length * table.rows.length), 0);
+            const completionRate = totalCells > 0 ? ((totalCells - missingFields.length) / totalCells * 100).toFixed(1) : 0;
+            
+            let analysisMessage = `📊 表格分析结果：\n\n`;
+            analysisMessage += `📋 表格数量：${tableData.tables.length} 个\n`;
+            analysisMessage += `📝 数据行数：${totalRows} 行\n`;
+            analysisMessage += `📈 数据完整度：${completionRate}%\n`;
+            analysisMessage += `❓ 缺失字段：${missingFields.length} 个\n\n`;
+
+            if (missingFields.length > 0) {
+                // 按字段分组统计
+                const fieldGroups = {};
+                missingFields.forEach(field => {
+                    if (!fieldGroups[field.fieldName]) {
+                        fieldGroups[field.fieldName] = 0;
+                    }
+                    fieldGroups[field.fieldName]++;
+                });
+                
+                analysisMessage += `🔍 缺失字段分布：\n`;
+                Object.entries(fieldGroups)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 8)
+                    .forEach(([fieldName, count]) => {
+                        analysisMessage += `• ${fieldName}: ${count} 处\n`;
+                    });
+                
+                if (Object.keys(fieldGroups).length > 8) {
+                    analysisMessage += `... 还有其他字段\n`;
+                }
+                
+                analysisMessage += `\n🎯 优先补充（按重要性排序）：\n`;
+                missingFields.slice(0, 5).forEach((field, index) => {
+                    const company = field.companyContext['公司名称'] || '未知公司';
+                    analysisMessage += `${index + 1}. ${company} - ${field.fieldName}\n`;
+                });
+                
+                if (missingFields.length > 5) {
+                    analysisMessage += `... 还有 ${missingFields.length - 5} 个待补充\n`;
+                }
+                
+                analysisMessage += `\n💡 点击"智能补全"开始自动填充！`;
+            } else {
+                analysisMessage += `✅ 恭喜！表格数据完整，无需补充！`;
+            }
+
+            this.addMessage(analysisMessage, 'assistant');
+            this.updateStatus(`完整度 ${completionRate}%，${missingFields.length} 个缺失`, 
+                             missingFields.length > 0 ? 'warning' : 'success');
+
+            if (missingFields.length > 0) {
+                document.getElementById('auto-fill-btn').disabled = false;
+            }
+
+        } catch (error) {
+            console.error('表格分析失败:', error);
+            this.updateStatus('分析失败', 'error');
+            this.addMessage('❌ 表格分析失败，请稍后重试。', 'assistant');
+        }
+    }
+
+    // 新增：自动补全表格方法
+    async autoFillTable() {
+        this.updateStatus('正在智能补全...', 'warning');
+        console.log('🔄 开始智能补全');
+
+        try {
+            const tableData = this.extractTableData();
+            const missingFields = this.tableEditor.identifyMissingFields(tableData);
+
+            if (missingFields.length === 0) {
+                this.addMessage('✅ 表格数据已完整，无需补充！', 'assistant');
+                this.updateStatus('数据完整', 'success');
+                return;
+            }
+
+            this.showThinkingIndicator();
+            this.pendingChanges = [];
+
+            const maxFields = Math.min(missingFields.length, 3); // 严格限制处理数量避免费用过高
+            let processedCount = 0;
+
+            for (const missingField of missingFields.slice(0, maxFields)) {
+                try {
+                    this.updateStatus(`处理中 ${processedCount + 1}/${maxFields}`, 'warning');
+                    
+                    const suggestion = await this.generateFieldSuggestion(missingField);
+                    
+                    if (suggestion && suggestion.content) {
+                        this.pendingChanges.push({
+                            field: missingField,
+                            suggestion: suggestion.content,
+                            confidence: suggestion.confidence || 0.8,
+                            fieldType: suggestion.fieldType || 'text'
+                        });
+                    }
+                    
+                    processedCount++;
+                    
+                    // 添加延迟避免API限制和费用过高
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                } catch (error) {
+                    console.error('生成建议失败:', error);
+                }
+            }
+
+            this.hideThinkingIndicator();
+
+            if (this.pendingChanges.length > 0) {
+                let message = `🎉 智能补全完成！\n\n`;
+                message += `📝 生成建议：${this.pendingChanges.length} 条\n`;
+                message += `🎯 覆盖字段：${new Set(this.pendingChanges.map(c => c.field.fieldName)).size} 种\n`;
+                message += `💡 平均置信度：${(this.pendingChanges.reduce((sum, c) => sum + c.confidence, 0) / this.pendingChanges.length * 100).toFixed(0)}%\n\n`;
+                message += `👀 点击"预览更改"查看详情\n`;
+                message += `✅ 确认无误后点击"应用更改"`;
+                
+                this.addMessage(message, 'assistant');
+                this.updateStatus(`生成 ${this.pendingChanges.length} 条建议`, 'success');
+                
+                document.getElementById('preview-changes-btn').disabled = false;
+                document.getElementById('apply-changes-btn').disabled = false;
+            } else {
+                this.addMessage('❌ 未能生成有效建议，请检查API配置或稍后重试。', 'assistant');
+                this.updateStatus('补全失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('智能补全失败:', error);
+            this.hideThinkingIndicator();
+            this.updateStatus('补全失败', 'error');
+            this.addMessage('❌ 智能补全失败，请稍后重试。', 'assistant');
+        }
+    }
+
+    // 新增：预览更改功能
+    previewChanges() {
+        if (this.pendingChanges.length === 0) {
+            this.addMessage('❌ 没有待预览的更改。请先执行"智能补全"。', 'assistant');
+            return;
+        }
+
+        let previewMessage = `👀 预览待应用的更改 (${this.pendingChanges.length}项)：\n\n`;
+        
+        this.pendingChanges.forEach((change, index) => {
+            const field = change.field;
+            const confidence = Math.round(change.confidence * 100);
+            const company = field.companyContext['公司名称'] || '未知公司';
+            
+            previewMessage += `${index + 1}. ${company} - ${field.fieldName}\n`;
+            previewMessage += `   建议值：${change.suggestion}\n`;
+            previewMessage += `   置信度：${confidence}%\n\n`;
+        });
+
+        previewMessage += `✅ 确认无误请点击"应用更改"\n`;
+        previewMessage += `❌ 如需修改请重新执行"智能补全"`;
+
+        this.addMessage(previewMessage, 'assistant');
+        this.updateStatus(`预览 ${this.pendingChanges.length} 项更改`, 'success');
+    }
+
+    // 新增：应用更改功能
+    async applyChanges() {
+        if (this.pendingChanges.length === 0) {
+            this.addMessage('❌ 没有待应用的更改。请先执行"智能补全"。', 'assistant');
+            return;
+        }
+
+        this.updateStatus('正在应用更改...', 'warning');
+        console.log('✅ 开始应用更改');
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const change of this.pendingChanges) {
+            try {
+                const cellElement = this.tableEditor.findCellForField(change.field);
+                
+                if (cellElement && this.tableEditor.isCellEditable(cellElement)) {
+                    const success = await this.tableEditor.fillCell(
+                        cellElement, 
+                        change.suggestion
+                    );
+                    
+                    if (success) {
+                        successCount++;
+                        console.log(`✅ 成功填充: ${change.field.fieldName} = ${change.suggestion}`);
+                    } else {
+                        failCount++;
+                        console.log(`❌ 填充失败: ${change.field.fieldName}`);
+                    }
+                } else {
+                    failCount++;
+                    console.log(`❌ 未找到可编辑单元格: ${change.field.fieldName}`);
+                }
+                
+                // 添加延迟避免操作过快
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+            } catch (error) {
+                failCount++;
+                console.error('应用更改失败:', error);
+            }
+        }
+
+        // 清空待应用的更改
+        this.pendingChanges = [];
+        
+        // 禁用按钮
+        document.getElementById('preview-changes-btn').disabled = true;
+        document.getElementById('apply-changes-btn').disabled = true;
+
+        // 显示结果
+        const resultMessage = `🎉 更改应用完成！\n\n` +
+            `✅ 成功：${successCount} 项\n` +
+            `❌ 失败：${failCount} 项\n\n` +
+            `💡 如需继续补充，请重新点击"分析表格"`;
+
+        this.addMessage(resultMessage, 'assistant');
+        
+        if (failCount === 0) {
+            this.updateStatus(`全部应用成功 (${successCount}项)`, 'success');
+        } else {
+            this.updateStatus(`部分成功 (${successCount}/${successCount + failCount})`, 'warning');
+        }
+    }
+
+    // 新增：生成字段建议
+    async generateFieldSuggestion(missingField) {
+        const fieldName = missingField.fieldName;
+        const context = missingField.companyContext;
+        const rules = this.fieldCompletionRules[fieldName];
+        
+        if (!rules) {
+            return null;
+        }
+
+        // 构建智能提示词
+        let prompt = `你是专业的企业信息分析师。请为"${fieldName}"字段提供准确信息。
+
+公司信息：
+${Object.entries(context).map(([key, value]) => `${key}: ${value}`).join('\n')}
+
+要求：${rules.prompt}`;
+
+        if (rules.options) {
+            prompt += `\n\n可选项：${rules.options.join('、')}`;
+            prompt += `\n请从上述选项中选择最合适的一个。`;
+        }
+
+        if (rules.maxLength) {
+            prompt += `\n字数限制：不超过${rules.maxLength}字`;
+        }
+
+        prompt += `\n\n请直接提供"${fieldName}"的值，不要解释：`;
+
+        try {
+            const response = await this.callDeepSeekAPI(prompt, { tables: [] }, 'deepseek-chat');
+            
+            if (response && response.content && !response.content.includes('抱歉，AI服务暂时无法连接')) {
+                let suggestion = response.content.trim();
+                
+                // 清理回复
+                suggestion = suggestion.replace(/^(根据|基于|建议|答案|结果)[：:]\s*/g, '');
+                suggestion = suggestion.replace(/^["'"`'"]|["'"`'"]$/g, '');
+                suggestion = suggestion.split('\n')[0];
+                
+                // 选项验证
+                if (rules.options) {
+                    const matchedOption = rules.options.find(option => 
+                        suggestion.toLowerCase().includes(option.toLowerCase()) ||
+                        option.toLowerCase().includes(suggestion.toLowerCase())
+                    );
+                    if (matchedOption) {
+                        suggestion = matchedOption;
+                    } else if (!rules.options.includes(suggestion)) {
+                        suggestion = rules.options[0]; // 默认第一个选项
+                    }
+                }
+                
+                // 长度限制
+                if (rules.maxLength && suggestion.length > rules.maxLength) {
+                    suggestion = suggestion.substring(0, rules.maxLength);
+                }
+                
+                // 验证
+                if (rules.validation && !rules.validation(suggestion)) {
+                    console.warn(`字段验证失败: ${fieldName} = ${suggestion}`);
+                    return null;
+                }
+                
+                return {
+                    content: suggestion,
+                    confidence: this.calculateConfidence(suggestion, rules),
+                    fieldType: this.getFieldType(fieldName)
+                };
+            }
+        } catch (error) {
+            console.error(`生成字段建议失败 [${fieldName}]:`, error);
+        }
+        
+        return null;
+    }
+
+    // 新增：更新状态显示
+    updateStatus(message, type = 'info') {
+        const statusElement = document.getElementById('table-status');
+        if (statusElement) {
+            statusElement.textContent = message;
+            statusElement.className = `table-status ${type}`;
+        }
+        console.log(`状态: ${message}`);
+    }
+
+    // 新增：更新API使用统计
+    updateApiUsage() {
+        const usageElement = document.getElementById('api-usage');
+        if (usageElement) {
+            usageElement.textContent = `今日API调用: ${this.apiCallCount}/${this.maxDailyApiCalls}`;
+            
+            if (this.apiCallCount >= this.maxDailyApiCalls) {
+                usageElement.className = 'api-usage danger';
+            } else if (this.apiCallCount >= this.maxDailyApiCalls * 0.8) {
+                usageElement.className = 'api-usage warning';
+            } else {
+                usageElement.className = 'api-usage';
+            }
+        }
+    }
+
+    // 新增：计算置信度
+    calculateConfidence(suggestion, rules) {
+        let confidence = 0.7;
+        
+        if (rules.options && rules.options.includes(suggestion)) {
+            confidence += 0.2;
+        }
+        
+        if (rules.validation && rules.validation(suggestion)) {
+            confidence += 0.1;
+        }
+        
+        if (suggestion.length > 5) {
+            confidence += 0.05;
+        }
+        
+        return Math.min(confidence, 1.0);
+    }
+
+    // 新增：获取字段类型
+    getFieldType(fieldName) {
+        const typeMap = {
+            '参考价值': 'selection',
+            '应用场景': 'selection',
+            '发展阶段': 'selection',
+            '业务模式': 'selection',
+            '成立国家': 'selection',
+            '公司类别': 'selection',
+            '成立时间': 'date',
+            '最后更新时间': 'date',
+            '服务连接': 'url',
+            '公司参考资料/链接': 'url'
+        };
+        return typeMap[fieldName] || 'text';
     }
 }
 
