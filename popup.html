@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 300px;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 18px;
+            margin: 0;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .divider {
+            margin: 20px 0;
+            border-top: 1px solid #eee;
+        }
+        
+        .feature-list {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .feature-list li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🐧 Kyle's AI Agent</h1>
+    </div>
+    
+    <div class="form-group">
+        <label for="apiKey">DeepSeek API密钥:</label>
+        <input type="password" id="apiKey" placeholder="输入您的DeepSeek API密钥">
+        <div class="help-text">
+            获取API密钥：<a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a>
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="model">模型选择:</label>
+        <select id="model" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="deepseek-reasoner">🧠 DeepSeek-V3.1 Thinking Mode (最强推理)</option>
+            <option value="deepseek-chat">💬 DeepSeek-V3.1 Non-thinking Mode</option>
+            <option value="deepseek-coder">💻 DeepSeek Coder (编程专用)</option>
+        </select>
+    </div>
+    
+    <button id="saveBtn">保存设置</button>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div class="divider"></div>
+    
+    <div class="feature-list">
+        <strong>功能特性：</strong>
+        <ul>
+            <li>✅ 智能表格分析</li>
+            <li>✅ 实时AI建议</li>
+            <li>✅ Accept/Reject机制</li>
+            <li>✅ 数据自动分类</li>
+            <li>✅ 相似案例推荐</li>
+        </ul>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div style="text-align: center; font-size: 12px; color: #999;">
+        版本 1.0.0 | 商分内部专用
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>

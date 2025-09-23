@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商分AI知识库管理</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: #718096;
+        }
+        .btn-danger {
+            background: #e53e3e;
+        }
+        
+        .knowledge-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .knowledge-item h4 {
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        .knowledge-item p {
+            color: #4a5568;
+            margin-bottom: 10px;
+        }
+        .knowledge-item .actions {
+            display: flex;
+            gap: 10px;
+        }
+        .knowledge-item .btn {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: #4a5568;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 商分AI知识库管理</h1>
+            <p>构建您的专业商业分析知识库，让AI更智能</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="companyCount">0</div>
+                <div class="stat-label">公司数据</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="industryCount">2</div>
+                <div class="stat-label">行业报告</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="templateCount">2</div>
+                <div class="stat-label">分析模板</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="customCount">1</div>
+                <div class="stat-label">自定义数据</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('companies')">公司数据</div>
+                <div class="tab" onclick="switchTab('industry')">行业报告</div>
+                <div class="tab" onclick="switchTab('templates')">分析模板</div>
+                <div class="tab" onclick="switchTab('custom')">自定义数据</div>
+            </div>
+            
+            <!-- 公司数据标签页 -->
+            <div id="companies" class="tab-content active">
+                <h2>📊 公司数据管理</h2>
+                <div class="form-group">
+                    <label for="companyName">公司名称</label>
+                    <input type="text" id="companyName" placeholder="例如：Cleo">
+                </div>
+                <div class="form-group">
+                    <label for="companyIndustry">所属行业</label>
+                    <select id="companyIndustry">
+                        <option value="tech">科技行业</option>
+                        <option value="finance">金融行业</option>
+                        <option value="consumer">消费行业</option>
+                        <option value="manufacturing">制造业</option>
+                        <option value="other">其他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="companyData">公司详细信息 (JSON格式)</label>
+                    <textarea id="companyData" placeholder='{"业务模式": "SaaS平台", "成立时间": "2019年", "主营业务": "AI助手", "融资情况": "A轮", "员工规模": "50-100人"}'></textarea>
+                </div>
+                <button class="btn" onclick="addCompanyData()">添加公司数据</button>
+                
+                <div id="companiesList" style="margin-top: 30px;">
+                    <h3>已添加的公司数据</h3>
+                    <div id="companiesContainer"></div>
+                </div>
+            </div>
+            
+            <!-- 行业报告标签页 -->
+            <div id="industry" class="tab-content">
+                <h2>📈 行业报告管理</h2>
+                <p>系统已预置科技和金融行业的基础数据，您可以添加更多行业报告。</p>
+                <div class="form-group">
+                    <label for="industryName">行业名称</label>
+                    <input type="text" id="industryName" placeholder="例如：新能源汽车">
+                </div>
+                <div class="form-group">
+                    <label for="industryMetrics">关键指标 (逗号分隔)</label>
+                    <input type="text" id="industryMetrics" placeholder="例如：市场份额,产能利用率,研发投入比例">
+                </div>
+                <div class="form-group">
+                    <label for="industryTrends">发展趋势 (逗号分隔)</label>
+                    <input type="text" id="industryTrends" placeholder="例如：智能化,绿色化,全球化">
+                </div>
+                <button class="btn" onclick="addIndustryData()">添加行业报告</button>
+            </div>
+            
+            <!-- 分析模板标签页 -->
+            <div id="templates" class="tab-content">
+                <h2>📋 分析模板管理</h2>
+                <p>系统已预置公司分析和市场分析模板，您可以添加自定义模板。</p>
+                <div class="form-group">
+                    <label for="templateName">模板名称</label>
+                    <input type="text" id="templateName" placeholder="例如：产品分析模板">
+                </div>
+                <div class="form-group">
+                    <label for="templateFramework">分析框架 (每行一个要点)</label>
+                    <textarea id="templateFramework" placeholder="1. 产品定位和目标用户&#10;2. 核心功能和差异化优势&#10;3. 用户体验和界面设计&#10;4. 技术架构和性能&#10;5. 商业模式和盈利能力"></textarea>
+                </div>
+                <button class="btn" onclick="addTemplate()">添加分析模板</button>
+            </div>
+            
+            <!-- 自定义数据标签页 -->
+            <div id="custom" class="tab-content">
+                <h2>⚙️ 自定义数据管理</h2>
+                <div class="form-group">
+                    <label for="customKey">数据类别</label>
+                    <input type="text" id="customKey" placeholder="例如：competitors">
+                </div>
+                <div class="form-group">
+                    <label for="customValue">数据内容 (JSON格式)</label>
+                    <textarea id="customValue" placeholder='{"主要竞争对手": ["公司A", "公司B"], "竞争优势": ["技术领先", "品牌知名度"]}'></textarea>
+                </div>
+                <button class="btn" onclick="addCustomData()">添加自定义数据</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>🔧 知识库操作</h2>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <button class="btn" onclick="exportKnowledge()">导出知识库</button>
+                <button class="btn btn-secondary" onclick="importKnowledge()">导入知识库</button>
+                <button class="btn btn-danger" onclick="clearKnowledge()">清空知识库</button>
+                <button class="btn" onclick="testKnowledge()">测试知识库</button>
+            </div>
+            <input type="file" id="importFile" accept=".json" style="display: none;" onchange="handleImport(event)">
+        </div>
+    </div>
+    
+    <script src="knowledge_base.js"></script>
+    <script>
+        // 标签页切换
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+        
+        // 添加公司数据
+        function addCompanyData() {
+            const name = document.getElementById('companyName').value.trim();
+            const industry = document.getElementById('companyIndustry').value;
+            const dataStr = document.getElementById('companyData').value.trim();
+            
+            if (!name || !dataStr) {
+                alert('请填写公司名称和详细信息');
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(dataStr);
+                data.industry = industry;
+                
+                window.knowledgeBase.addCompanyData(name, data);
+                
+                // 清空表单
+                document.getElementById('companyName').value = '';
+                document.getElementById('companyData').value = '';
+                
+                alert('公司数据添加成功！');
+                updateStats();
+                loadCompanies();
+            } catch (error) {
+                alert('JSON格式错误，请检查数据格式');
+            }
+        }
+        
+        // 添加行业数据
+        function addIndustryData() {
+            const name = document.getElementById('industryName').value.trim();
+            const metrics = document.getElementById('industryMetrics').value.split(',').map(s => s.trim());
+            const trends = document.getElementById('industryTrends').value.split(',').map(s => s.trim());
+            
+            if (!name) {
+                alert('请填写行业名称');
+                return;
+            }
+            
+            const key = name.toLowerCase().replace(/\s+/g, '_');
+            window.knowledgeBase.knowledgeData.industryReports[key] = {
+                name: name,
+                keyMetrics: metrics,
+                trends: trends
+            };
+            
+            window.knowledgeBase.saveKnowledgeBase();
+            
+            // 清空表单
+            document.getElementById('industryName').value = '';
+            document.getElementById('industryMetrics').value = '';
+            document.getElementById('industryTrends').value = '';
+            
+            alert('行业报告添加成功！');
+            updateStats();
+        }
+        
+        // 添加分析模板
+        function addTemplate() {
+            const name = document.getElementById('templateName').value.trim();
+            const framework = document.getElementById('templateFramework').value.trim().split('\n').filter(line => line.trim());
+            
+            if (!name || framework.length === 0) {
+                alert('请填写模板名称和分析框架');
+                return;
+            }
+            
+            const key = name.toLowerCase().replace(/\s+/g, '_');
+            window.knowledgeBase.knowledgeData.analysisTemplates[key] = {
+                name: name,
+                framework: framework
+            };
+            
+            window.knowledgeBase.saveKnowledgeBase();
+            
+            // 清空表单
+            document.getElementById('templateName').value = '';
+            document.getElementById('templateFramework').value = '';
+            
+            alert('分析模板添加成功！');
+            updateStats();
+        }
+        
+        // 添加自定义数据
+        function addCustomData() {
+            const key = document.getElementById('customKey').value.trim();
+            const valueStr = document.getElementById('customValue').value.trim();
+            
+            if (!key || !valueStr) {
+                alert('请填写数据类别和内容');
+                return;
+            }
+            
+            try {
+                const value = JSON.parse(valueStr);
+                window.knowledgeBase.knowledgeData.customData[key] = value;
+                window.knowledgeBase.saveKnowledgeBase();
+                
+                // 清空表单
+                document.getElementById('customKey').value = '';
+                document.getElementById('customValue').value = '';
+                
+                alert('自定义数据添加成功！');
+                updateStats();
+            } catch (error) {
+                alert('JSON格式错误，请检查数据格式');
+            }
+        }
+        
+        // 更新统计数据
+        function updateStats() {
+            const kb = window.knowledgeBase.knowledgeData;
+            document.getElementById('companyCount').textContent = Object.keys(kb.companies).length;
+            document.getElementById('industryCount').textContent = Object.keys(kb.industryReports).length;
+            document.getElementById('templateCount').textContent = Object.keys(kb.analysisTemplates).length;
+            document.getElementById('customCount').textContent = Object.keys(kb.customData).length;
+        }
+        
+        // 加载公司列表
+        function loadCompanies() {
+            const container = document.getElementById('companiesContainer');
+            const companies = window.knowledgeBase.knowledgeData.companies;
+            
+            container.innerHTML = '';
+            Object.keys(companies).forEach(name => {
+                const company = companies[name];
+                const item = document.createElement('div');
+                item.className = 'knowledge-item';
+                item.innerHTML = `
+                    <h4>${name}</h4>
+                    <p>行业：${company.industry || '未指定'}</p>
+                    <p>添加时间：${new Date(company.addedDate).toLocaleDateString()}</p>
+                    <div class="actions">
+                        <button class="btn btn-secondary" onclick="editCompany('${name}')">编辑</button>
+                        <button class="btn btn-danger" onclick="deleteCompany('${name}')">删除</button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+        
+        // 导出知识库
+        function exportKnowledge() {
+            const data = JSON.stringify(window.knowledgeBase.knowledgeData, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `knowledge_base_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        }
+        
+        // 导入知识库
+        function importKnowledge() {
+            document.getElementById('importFile').click();
+        }
+        
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    window.knowledgeBase.knowledgeData = { ...window.knowledgeBase.knowledgeData, ...data };
+                    window.knowledgeBase.saveKnowledgeBase();
+                    
+                    alert('知识库导入成功！');
+                    updateStats();
+                    loadCompanies();
+                } catch (error) {
+                    alert('文件格式错误，请选择有效的JSON文件');
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // 清空知识库
+        function clearKnowledge() {
+            if (confirm('确定要清空所有知识库数据吗？此操作不可恢复！')) {
+                window.knowledgeBase.knowledgeData = {
+                    companies: {},
+                    industryReports: {},
+                    analysisTemplates: {},
+                    customData: {}
+                };
+                window.knowledgeBase.loadDefaultKnowledge();
+                window.knowledgeBase.saveKnowledgeBase();
+                
+                alert('知识库已清空并重置为默认状态');
+                updateStats();
+                loadCompanies();
+            }
+        }
+        
+        // 测试知识库
+        function testKnowledge() {
+            const testQuery = prompt('请输入测试查询词（例如：Cleo、科技、分析）：');
+            if (!testQuery) return;
+            
+            const results = window.knowledgeBase.searchKnowledge(testQuery);
+            
+            if (results.length === 0) {
+                alert('没有找到相关知识');
+            } else {
+                let message = `找到 ${results.length} 条相关知识：\n\n`;
+                results.forEach((result, index) => {
+                    message += `${index + 1}. ${result.name} (${result.type})\n`;
+                });
+                alert(message);
+            }
+        }
+        
+        // 删除公司
+        function deleteCompany(name) {
+            if (confirm(`确定要删除 ${name} 的数据吗？`)) {
+                delete window.knowledgeBase.knowledgeData.companies[name];
+                window.knowledgeBase.saveKnowledgeBase();
+                updateStats();
+                loadCompanies();
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                updateStats();
+                loadCompanies();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

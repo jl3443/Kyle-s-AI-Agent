@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "DeepSeek AI 智能助手",
+  "version": "1.0.0",
+  "description": "通用DeepSeek AI智能助手，可在任何网页使用，提供智能分析和建议",
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.deepseek.com;"
+  },
+  
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["knowledge_base.js", "deepseek_integration.js"],
+      "run_at": "document_end",
+      "all_frames": true
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DeepSeek AI助手设置"
+  },
+  
+  "background": {
+    "service_worker": "background.js"
+  }
+}

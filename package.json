@@ -1,0 +1,21 @@
+{
+  "name": "deepseek-proxy-server",
+  "version": "1.0.0",
+  "description": "DeepSeek API代理服务器，解决CORS跨域问题",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev": "nodemon proxy-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["deepseek", "api", "proxy", "cors"],
+  "author": "商分内部团队",
+  "license": "MIT"
+}

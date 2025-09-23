@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DeepSeek API CORS代理测试</title>
+</head>
+<body>
+    <h2>DeepSeek API测试工具</h2>
+    <div>
+        <label>API密钥：</label>
+        <input type="password" id="apiKey" placeholder="输入您的DeepSeek API密钥" style="width: 300px;">
+    </div>
+    <br>
+    <div>
+        <label>问题：</label>
+        <textarea id="question" placeholder="输入您的问题" style="width: 300px; height: 60px;"></textarea>
+    </div>
+    <br>
+    <button onclick="testAPI()">测试API调用</button>
+    <br><br>
+    <div id="result" style="border: 1px solid #ccc; padding: 10px; min-height: 100px; white-space: pre-wrap;"></div>
+
+    <script>
+        async function testAPI() {
+            const apiKey = document.getElementById('apiKey').value;
+            const question = document.getElementById('question').value;
+            const resultDiv = document.getElementById('result');
+            
+            if (!apiKey || !question) {
+                alert('请输入API密钥和问题');
+                return;
+            }
+            
+            resultDiv.textContent = '正在调用API...';
+            
+            try {
+                // 使用公共CORS代理
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                const targetUrl = encodeURIComponent('https://api.deepseek.com/v1/chat/completions');
+                
+                const response = await fetch(proxyUrl + targetUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: '你是一个专业的表格数据分析助手。'
+                            },
+                            {
+                                role: 'user',
+                                content: question
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 500
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                resultDiv.textContent = `成功！AI回答：\n\n${data.choices[0].message.content}`;
+                
+            } catch (error) {
+                resultDiv.textContent = `错误：${error.message}`;
+                console.error('API调用失败:', error);
+            }
+        }
+    </script>
+</body>
+</html>
