@@ -1052,7 +1052,7 @@ class DeepSeekAssistant {
         const messages = [
             {
                 role: "system",
-                content: `你是专业的企业信息分析师，擅长分析公司的商业模式、技术实力和市场表现。
+                content: `你是专业的金融AI产品分析师，擅长分析公司的细分赛道、业务模式、成立时间、发展阶段、核心产品、应用场景、AI技术实况、一句点评。
 
 当分析公司信息时，请按照以下格式提供信息：
 
@@ -1737,23 +1737,12 @@ class DeepSeekAssistant {
         }
     }
 
-    // 监听表格变化
+    // 监听表格变化 - 完全禁用避免意外API调用
     observeTableChanges() {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                    // 表格内容发生变化，可以触发自动分析
-                    this.onTableChanged();
-                }
-            });
-        });
-
-        // 观察整个文档的变化
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true
-        });
+        console.log('⚠️ MutationObserver已禁用，避免意外API调用');
+        // 完全禁用MutationObserver，防止任何自动触发
+        // const observer = new MutationObserver(...);
+        // observer.observe(...);
     }
 
     // 表格变化处理
@@ -1768,24 +1757,15 @@ class DeepSeekAssistant {
         // }, 1000); // 延迟1秒，避免频繁触发
     }
 
-    // 自动建议
+    // 自动建议 - 完全禁用避免意外API调用
     async autoSuggest() {
-        const tableData = this.extractTableData();
-        if (tableData.length === 0) return;
-
-        // 自动分析表格并提供建议
-        try {
-            const response = await this.callDeepSeekAPI(
-                '请分析当前表格数据，提供有用的建议', 
-                tableData
-            );
-            
-            if (response.suggestions && response.suggestions.length > 0) {
-                this.processSuggestions(response.suggestions);
-            }
-        } catch (error) {
-            console.error('自动建议失败:', error);
-        }
+        console.log('⚠️ autoSuggest已禁用，避免意外API调用');
+        return; // 直接返回，不执行任何API调用
+        
+        // 以下代码已禁用
+        // const tableData = this.extractTableData();
+        // if (tableData.length === 0) return;
+        // const response = await this.callDeepSeekAPI(...);
     }
 
     // 新增：分析表格方法
