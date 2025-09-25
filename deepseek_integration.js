@@ -1241,64 +1241,90 @@ class DeepSeekAssistant {
 
             console.log(`处理表格 ${index + 1}:`, table);
 
-            // 提取表头 - 多种方式
+            // 提取表头 - 专门针对腾讯文档优化
             let headerCells = table.querySelectorAll('th');
+            console.log(`找到 ${headerCells.length} 个th元素`);
             
             // 如果没有th，尝试第一行作为表头
             if (headerCells.length === 0) {
                 const firstRow = table.querySelector('tr');
                 if (firstRow) {
-                    headerCells = firstRow.querySelectorAll('td');
-                    console.log(`使用第一行作为表头，找到 ${headerCells.length} 个单元格`);
+                    // 腾讯文档可能使用div、span等作为单元格
+                    headerCells = firstRow.querySelectorAll('td, div, span, p, .cell, [role="cell"], [role="columnheader"]');
+                    console.log(`第一行找到 ${headerCells.length} 个可能的单元格元素`);
                 }
             }
 
             // 如果还是没有，尝试查找包含表头文本的元素
             if (headerCells.length === 0) {
-                headerCells = table.querySelectorAll('td, th, div[role="columnheader"], .header-cell, .table-header');
-                console.log(`使用通用选择器找到 ${headerCells.length} 个可能的表头`);
+                headerCells = table.querySelectorAll('td, th, div, span, p, .header-cell, .table-header, [role="columnheader"]');
+                console.log(`通用选择器找到 ${headerCells.length} 个可能的表头元素`);
             }
 
-            headerCells.forEach(cell => {
+            Array.from(headerCells).forEach((cell, cellIndex) => {
                 const text = cell.textContent.trim();
                 if (text) {
                     headers.push(text);
+                    console.log(`表头${cellIndex + 1}: "${text}"`);
                 }
             });
 
             console.log(`提取到表头:`, headers);
 
-            // 提取数据行 - 多种方式
+            // 提取数据行 - 专门针对腾讯文档优化
             let dataRows = table.querySelectorAll('tbody tr');
+            console.log(`tbody中找到 ${dataRows.length} 个数据行`);
             
             // 如果没有tbody，直接查找所有tr
             if (dataRows.length === 0) {
                 dataRows = table.querySelectorAll('tr');
+                console.log(`表格中总共找到 ${dataRows.length} 个tr元素`);
                 // 如果第一行是表头，跳过它
                 if (dataRows.length > 0 && headers.length > 0) {
                     dataRows = Array.from(dataRows).slice(1);
+                    console.log(`跳过表头后剩余 ${dataRows.length} 个数据行`);
                 }
             }
 
             // 如果还是没有tr，尝试查找其他行结构
             if (dataRows.length === 0) {
                 dataRows = table.querySelectorAll('div[role="row"], .table-row, .data-row');
+                console.log(`其他行结构找到 ${dataRows.length} 个`);
             }
 
             console.log(`找到 ${dataRows.length} 个数据行`);
 
             dataRows.forEach((row, rowIndex) => {
                 const rowData = [];
-                const cells = row.querySelectorAll('td, th, div[role="cell"], .table-cell, .data-cell');
                 
-                cells.forEach(cell => {
+                // 腾讯文档可能使用的单元格选择器
+                let cells = row.querySelectorAll('td, th');
+                console.log(`行${rowIndex + 1} 标准单元格: ${cells.length} 个`);
+                
+                // 如果没有标准单元格，尝试其他元素
+                if (cells.length === 0) {
+                    cells = row.querySelectorAll('div, span, p');
+                    console.log(`行${rowIndex + 1} div/span/p元素: ${cells.length} 个`);
+                }
+                
+                // 如果还是没有，尝试直接子元素
+                if (cells.length === 0) {
+                    cells = row.children;
+                    console.log(`行${rowIndex + 1} 直接子元素: ${cells.length} 个`);
+                }
+                
+                Array.from(cells).forEach((cell, cellIndex) => {
                     const text = cell.textContent.trim();
-                    rowData.push(text);
+                    if (text) {
+                        rowData.push(text);
+                    }
                 });
 
                 if (rowData.length > 0) {
                     rows.push(rowData);
-                    console.log(`行 ${rowIndex + 1}:`, rowData);
+                    console.log(`✅ 行 ${rowIndex + 1} 数据:`, rowData.slice(0, 5), rowData.length > 5 ? `...(共${rowData.length}个)` : '');
+                } else {
+                    console.log(`❌ 行 ${rowIndex + 1} 没有提取到数据`);
                 }
             });
 
