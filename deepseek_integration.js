@@ -1184,6 +1184,113 @@ class DeepSeekAssistant {
         // 方法4：智能检测腾讯文档表格结构
         if (tables.length === 0) {
             console.log('🔍 开始智能检测腾讯文档表格结构...');
+        
+        // 新增：探测腾讯表格的JavaScript数据结构
+        console.log('🕵️ 探测腾讯表格JavaScript数据结构:');
+        
+        // 1. 检查全局对象
+        const globalKeys = Object.keys(window).filter(key => 
+            key.toLowerCase().includes('sheet') || 
+            key.toLowerCase().includes('table') || 
+            key.toLowerCase().includes('data') ||
+            key.toLowerCase().includes('tencent') ||
+            key.toLowerCase().includes('docs')
+        );
+        console.log('🌐 相关全局对象:', globalKeys);
+        
+        // 2. 检查常见的数据存储位置
+        const dataLocations = [
+            'window.__INITIAL_STATE__',
+            'window.__DATA__', 
+            'window.sheetData',
+            'window.tableData',
+            'window.docData',
+            'window.store',
+            'window.app',
+            'window.vue',
+            'window.react'
+        ];
+        
+        dataLocations.forEach(location => {
+            try {
+                const data = eval(location);
+                if (data) {
+                    console.log(`📊 找到数据对象 ${location}:`, typeof data, Object.keys(data).slice(0, 10));
+                }
+            } catch (e) {
+                // 忽略错误
+            }
+        });
+        
+        // 3. 检查DOM元素的数据属性
+        const containers = document.querySelectorAll('[data-*], [id*="sheet"], [class*="sheet"], [class*="table"]');
+        console.log(`🏗️ 找到 ${containers.length} 个可能的数据容器`);
+        containers.forEach((el, i) => {
+            if (i < 5) { // 只显示前5个
+                console.log(`容器${i + 1}:`, el.tagName, el.className, Object.keys(el.dataset));
+            }
+        });
+        
+        // 4. 尝试访问可能的API对象
+        const apiChecks = [
+            'window.TDocs',
+            'window.DocsAPI', 
+            'window.SheetAPI',
+            'window.wx',
+            'window.qq'
+        ];
+        
+        apiChecks.forEach(api => {
+            try {
+                const obj = eval(api);
+                if (obj) {
+                    console.log(`🔌 找到API对象 ${api}:`, typeof obj, Object.keys(obj).slice(0, 10));
+                }
+            } catch (e) {
+                // 忽略错误
+            }
+        });
+        
+        // 5. 深度探测：检查所有可能包含表格数据的对象
+        console.log('🔬 深度探测数据结构...');
+        
+        // 检查所有script标签中的数据
+        const scripts = document.querySelectorAll('script');
+        let foundDataInScript = false;
+        scripts.forEach((script, i) => {
+            if (script.textContent && script.textContent.includes('sheet') && i < 3) {
+                console.log(`📜 Script ${i} 包含sheet相关内容`);
+                foundDataInScript = true;
+            }
+        });
+        
+        // 检查可能的React/Vue组件实例
+        const reactKeys = Object.keys(window).filter(key => key.startsWith('__REACT') || key.startsWith('__VUE'));
+        if (reactKeys.length > 0) {
+            console.log('⚛️ 找到React/Vue相关对象:', reactKeys);
+        }
+        
+        // 检查iframe中的数据（腾讯文档可能使用iframe）
+        const iframes = document.querySelectorAll('iframe');
+        console.log(`🖼️ 找到 ${iframes.length} 个iframe`);
+        
+        // 检查Canvas元素（表格可能在Canvas中渲染）
+        const canvases = document.querySelectorAll('canvas');
+        console.log(`🎨 找到 ${canvases.length} 个canvas元素`);
+        if (canvases.length > 0) {
+            console.log('Canvas可能用于表格渲染，需要通过JS API获取数据');
+        }
+        
+        // 6. 尝试监听网络请求中的数据
+        console.log('🌐 检查是否有数据API调用...');
+        
+        // 检查performance entries中的网络请求
+        if (window.performance && window.performance.getEntriesByType) {
+            const networkEntries = window.performance.getEntriesByType('resource')
+                .filter(entry => entry.name.includes('api') || entry.name.includes('data'))
+                .slice(-5); // 最近5个
+            console.log('📡 最近的API请求:', networkEntries.map(e => e.name));
+        }
             
             // 查找可能包含表格数据的div结构
             const potentialTables = document.querySelectorAll('div');
