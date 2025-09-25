@@ -31,10 +31,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // 在background script中调用DeepSeek API（绕过CSP限制）
-async function callDeepSeekAPI(messages, apiKey, model = 'deepseek-reasoner') {
+async function callDeepSeekAPI(messages, apiKey, model = 'deepseek-chat') {
     console.log('🔄 后台脚本调用DeepSeek API');
     console.log('消息数量:', messages.length);
     console.log('使用模型:', model);
+    console.log('⚠️ 警告：如果使用deepseek-reasoner模型，费用会很高！');
     
     try {
         const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
