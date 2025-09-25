@@ -1065,49 +1065,47 @@ class DeepSeekAssistant {
         console.log('🔄 开始调用DeepSeek API');
         let response;
         
-        // 跳过直接API调用，避免CORS问题导致的无效扣费
-        // 直接API调用会被浏览器CORS策略阻止，但仍会向DeepSeek发送请求并扣费
-        console.log('⚠️ 跳过直接API调用，避免CORS导致的无效扣费');
-        
         try {
-            // 方法2：通过本地代理服务器
-            console.log('尝试方法2：本地代理服务器');
-            response = await fetch('http://localhost:3001/api/deepseek', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: userMessage,
+            // 使用Chrome扩展的background script调用API（绕过CORS限制）
+            console.log('🔄 通过background script调用API');
+            
+            const response = await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    type: 'CALL_DEEPSEEK_API',
+                    messages: messages,
                     apiKey: this.apiKey,
-                    model: model,
-                    tableData: tableData
-                })
+                    model: model
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                    } else {
+                        resolve(response);
+                    }
+                });
             });
             
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    console.log('✅ 本地代理调用成功');
-                    return { content: data.message, suggestions: [] };
-                }
+            if (response.success) {
+                const aiResponse = response.data.choices[0].message.content;
+                console.log('✅ Background script API调用成功');
+                return { content: aiResponse, suggestions: [] };
+            } else {
+                throw new Error(response.error);
             }
         } catch (error) {
-            console.log('❌ 本地代理调用失败:', error.message);
+            console.log('❌ Background script调用失败:', error.message);
         }
         
-        // 方法3：智能提示用户
+        // 最后：智能提示用户
         console.log('⚠️ 所有API调用方法都失败，提供解决方案');
         const helpMessage = `抱歉，AI服务暂时无法连接。
 
 🔧 解决方案：
-1. 检查API密钥是否正确
-2. 启动本地代理服务器：
-   - 下载并安装 Node.js
-   - 在项目目录运行：npm install && npm start
-   - 确保服务器在 localhost:3001 运行
+1. 检查API密钥是否正确配置
+2. 确保网络连接正常
+3. 检查API余额是否充足
+4. 重新加载Chrome扩展
 
-💡 或者联系管理员获取帮助。
+💡 如果问题持续，请联系管理员获取帮助。
 
 您的问题："${userMessage}"已记录，服务恢复后会自动处理。`;
 

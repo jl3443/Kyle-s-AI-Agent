@@ -47,7 +47,7 @@ async function callDeepSeekAPI(messages, apiKey, model = 'deepseek-reasoner') {
                 model: model,
                 messages: messages,
                 temperature: 0.7,
-                max_tokens: model === 'deepseek-reasoner' ? 800 : 500  // 大幅降低token限制节省费用
+                max_tokens: model === 'deepseek-reasoner' ? 200 : 100  // 严格限制token避免费用过高
             })
         });
 
