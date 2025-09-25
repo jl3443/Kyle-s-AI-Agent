@@ -1052,7 +1052,30 @@ class DeepSeekAssistant {
         const messages = [
             {
                 role: "system",
-                content: `你是AI助手。简洁回答，不超过50字。`
+                content: `你是专业的企业信息分析师，擅长分析公司的商业模式、技术实力和市场表现。
+
+当分析公司信息时，请按照以下格式提供信息：
+
+📊 **基本信息**
+- 公司名称：[准确的公司全称]
+- 成立时间：[YYYY年]
+- 成立国家：[国家/地区]
+- 发展阶段：[种子轮/A轮/B轮/上市/成熟期等]
+
+🏢 **业务分析**  
+- 细分赛道：[具体的行业细分领域]
+- 业务模式：[To B/To C/SaaS/平台型等]
+- 核心产品：[主要产品或服务]
+- 应用场景：[主要应用领域和使用场景]
+
+🤖 **AI技术实况**
+- AI功能：[具体的AI技术应用]
+- 技术特色：[独特的技术优势]
+- 创新点：[技术创新或商业创新]
+
+💡 **一句点评**：[用一句话概括公司的核心价值和特色]
+
+请基于你的知识库提供准确、专业的分析。如果某些信息不确定，请明确标注。回答要简洁专业，重点突出。`
             },
             ...this.conversationHistory,
             {
@@ -1258,9 +1281,36 @@ class DeepSeekAssistant {
         const scripts = document.querySelectorAll('script');
         let foundDataInScript = false;
         scripts.forEach((script, i) => {
-            if (script.textContent && script.textContent.includes('sheet') && i < 3) {
+            if (script.textContent && script.textContent.includes('sheet')) {
                 console.log(`📜 Script ${i} 包含sheet相关内容`);
                 foundDataInScript = true;
+                
+                // 尝试提取可能的数据结构
+                const content = script.textContent;
+                
+                // 查找可能的数据模式
+                const patterns = [
+                    /window\.\w+\s*=\s*\{[\s\S]*?sheet[\s\S]*?\}/gi,
+                    /var\s+\w+\s*=\s*\{[\s\S]*?sheet[\s\S]*?\}/gi,
+                    /const\s+\w+\s*=\s*\{[\s\S]*?sheet[\s\S]*?\}/gi,
+                    /"sheet":\s*\{[\s\S]*?\}/gi,
+                    /"data":\s*\[[\s\S]*?\]/gi
+                ];
+                
+                patterns.forEach((pattern, pi) => {
+                    const matches = content.match(pattern);
+                    if (matches && matches.length > 0) {
+                        console.log(`🎯 Script ${i} 模式 ${pi + 1} 匹配:`, matches.length, '个');
+                        matches.slice(0, 2).forEach((match, mi) => {
+                            console.log(`  匹配 ${mi + 1}:`, match.substring(0, 200) + '...');
+                        });
+                    }
+                });
+                
+                // 查找可能的表格数据数组
+                if (content.includes('rows') || content.includes('cells') || content.includes('data')) {
+                    console.log(`📊 Script ${i} 可能包含表格数据结构`);
+                }
             }
         });
         
@@ -1292,6 +1342,55 @@ class DeepSeekAssistant {
         
         // 7. 专门检查腾讯文档可能的数据存储
         console.log('🔍 专门检查腾讯文档数据存储...');
+        
+        // 8. 基于Canvas发现，深入探测表格数据
+        console.log('🎨 基于Canvas发现，探测表格渲染数据...');
+        
+        // 检查Canvas父元素及其数据
+        canvases.forEach((canvas, i) => {
+            const parent = canvas.parentElement;
+            if (parent) {
+                console.log(`Canvas ${i + 1} 父元素:`, {
+                    tagName: parent.tagName,
+                    className: parent.className,
+                    id: parent.id,
+                    dataAttributes: Object.keys(parent.dataset)
+                });
+                
+                // 检查父元素的兄弟元素
+                const siblings = parent.parentElement?.children;
+                if (siblings) {
+                    console.log(`Canvas ${i + 1} 父级容器的子元素:`, Array.from(siblings).map(el => ({
+                        tag: el.tagName,
+                        id: el.id,
+                        className: el.className.substring(0, 50)
+                    })));
+                }
+            }
+        });
+        
+        // 9. 检查可能的表格数据存储在DOM元素上
+        console.log('🔍 检查DOM元素上的数据存储...');
+        const potentialDataElements = document.querySelectorAll('[data-sheet-id], [data-doc-id], [data-file-id]');
+        console.log(`找到 ${potentialDataElements.length} 个带有数据ID的元素`);
+        
+        // 10. 检查全局变量中可能的表格实例
+        console.log('🔍 检查全局表格实例...');
+        Object.keys(window).forEach(key => {
+            if (key.toLowerCase().includes('sheet') || 
+                key.toLowerCase().includes('grid') || 
+                key.toLowerCase().includes('table') ||
+                key.toLowerCase().includes('canvas')) {
+                try {
+                    const obj = window[key];
+                    if (obj && typeof obj === 'object' && obj !== window) {
+                        console.log(`🎯 全局对象 window.${key}:`, typeof obj, Object.keys(obj).slice(0, 10));
+                    }
+                } catch (e) {
+                    // 忽略错误
+                }
+            }
+        });
         
         // 检查可能的数据存储对象
         const tencentDataChecks = [
