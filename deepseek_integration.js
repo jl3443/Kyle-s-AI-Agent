@@ -1223,7 +1223,7 @@ class DeepSeekAssistant {
         });
         
         // 3. 检查DOM元素的数据属性
-        const containers = document.querySelectorAll('[data-*], [id*="sheet"], [class*="sheet"], [class*="table"]');
+        const containers = document.querySelectorAll('[data-sheet], [data-table], [id*="sheet"], [class*="sheet"], [class*="table"]');
         console.log(`🏗️ 找到 ${containers.length} 个可能的数据容器`);
         containers.forEach((el, i) => {
             if (i < 5) { // 只显示前5个
@@ -1279,7 +1279,51 @@ class DeepSeekAssistant {
         console.log(`🎨 找到 ${canvases.length} 个canvas元素`);
         if (canvases.length > 0) {
             console.log('Canvas可能用于表格渲染，需要通过JS API获取数据');
+            canvases.forEach((canvas, i) => {
+                console.log(`Canvas ${i + 1}:`, {
+                    width: canvas.width,
+                    height: canvas.height,
+                    id: canvas.id,
+                    className: canvas.className,
+                    parent: canvas.parentElement?.tagName
+                });
+            });
         }
+        
+        // 7. 专门检查腾讯文档可能的数据存储
+        console.log('🔍 专门检查腾讯文档数据存储...');
+        
+        // 检查可能的数据存储对象
+        const tencentDataChecks = [
+            'window.g_config',
+            'window.wx',
+            'window.qq', 
+            'window.tdocs',
+            'window.TDOCS',
+            'window.__webpack_require__',
+            'window.webpackJsonp',
+            'window.modules'
+        ];
+        
+        tencentDataChecks.forEach(check => {
+            try {
+                const obj = eval(check);
+                if (obj && typeof obj === 'object') {
+                    console.log(`🎯 找到 ${check}:`, typeof obj, Object.keys(obj).slice(0, 15));
+                    
+                    // 如果是配置对象，深入检查
+                    if (check.includes('config') || check.includes('wx') || check.includes('qq')) {
+                        Object.keys(obj).forEach(key => {
+                            if (key.toLowerCase().includes('sheet') || key.toLowerCase().includes('data')) {
+                                console.log(`  📋 ${check}.${key}:`, typeof obj[key]);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                // 忽略错误
+            }
+        });
         
         // 6. 尝试监听网络请求中的数据
         console.log('🌐 检查是否有数据API调用...');
