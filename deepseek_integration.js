@@ -242,9 +242,7 @@ class DeepSeekAssistant {
         this.tableEditor = new TableEditor();
         this.pendingChanges = [];
         
-        // 费用保护机制
-        this.apiCallCount = 0;
-        this.maxDailyApiCalls = 10; // 每天最多10次API调用
+        // 移除API调用限制，按用户要求
         
         // 针对您的表格字段定义补全规则
         this.fieldCompletionRules = {
@@ -398,7 +396,6 @@ class DeepSeekAssistant {
                     </button>
                 </div>
                 <div id="table-status" class="table-status">就绪</div>
-                <div id="api-usage" class="api-usage">今日API调用: 0/10</div>
             </div>
             <div class="ai-chat-container">
                 <div class="ai-messages" id="ai-messages">
@@ -843,29 +840,6 @@ class DeepSeekAssistant {
             .ai-messages li {
                 margin: 4px 0;
             }
-
-            .api-usage {
-                font-size: 11px;
-                color: #666;
-                padding: 4px 8px;
-                background: #f8f9fa;
-                border-radius: 4px;
-                border: 1px solid #e9ecef;
-                text-align: center;
-                margin-top: 8px;
-            }
-
-            .api-usage.warning {
-                background: #fff3cd;
-                color: #856404;
-                border-color: #ffeaa7;
-            }
-
-            .api-usage.danger {
-                background: #f8d7da;
-                color: #721c24;
-                border-color: #f5c6cb;
-            }
         `;
         document.head.appendChild(style);
     }
@@ -1068,16 +1042,7 @@ class DeepSeekAssistant {
 
     // 调用DeepSeek API
     async callDeepSeekAPI(userMessage, tableData, model = 'deepseek-chat') {
-        // 费用保护检查
-        if (this.apiCallCount >= this.maxDailyApiCalls) {
-            const errorMessage = `⚠️ 今日API调用已达上限 (${this.maxDailyApiCalls}次)，为避免费用过高已自动停止。\n\n如需继续使用，请明天再试或联系管理员调整限制。`;
-            return { content: errorMessage, suggestions: [] };
-        }
-        
-        this.apiCallCount++;
-        console.log(`📊 API调用计数: ${this.apiCallCount}/${this.maxDailyApiCalls}`);
-        this.updateApiUsage();
-        
+        console.log('🔄 开始调用DeepSeek API');
         // 生成动态知识库上下文
         let knowledgeContext = '';
         if (window.knowledgeBase) {
@@ -1182,37 +1147,122 @@ class DeepSeekAssistant {
             mainContent: ''
         };
 
-        // 1. 提取表格数据
-        const tables = document.querySelectorAll('table');
+        console.log('🔍 开始提取表格数据');
+        console.log('当前页面URL:', window.location.href);
+
+        // 1. 多种方式提取表格数据
+        // 方法1：标准table元素
+        let tables = document.querySelectorAll('table');
+        console.log(`找到 ${tables.length} 个标准table元素`);
+
+        // 方法2：腾讯文档特殊选择器
+        if (tables.length === 0) {
+            tables = document.querySelectorAll('.ql-editor table, .docs-table, .online-table, [data-table]');
+            console.log(`腾讯文档选择器找到 ${tables.length} 个表格`);
+        }
+
+        // 方法3：通用表格结构检测
+        if (tables.length === 0) {
+            tables = document.querySelectorAll('div[role="table"], .table, .data-table, .grid');
+            console.log(`通用选择器找到 ${tables.length} 个表格结构`);
+        }
+
+        // 方法4：查找包含tr元素的容器
+        if (tables.length === 0) {
+            const trElements = document.querySelectorAll('tr');
+            if (trElements.length > 0) {
+                const tableContainers = new Set();
+                trElements.forEach(tr => {
+                    let parent = tr.parentElement;
+                    while (parent && parent !== document.body) {
+                        if (parent.tagName === 'TABLE' || parent.classList.contains('table') || parent.getAttribute('role') === 'table') {
+                            tableContainers.add(parent);
+                            break;
+                        }
+                        parent = parent.parentElement;
+                    }
+                });
+                tables = Array.from(tableContainers);
+                console.log(`通过tr元素找到 ${tables.length} 个表格容器`);
+            }
+        }
+
         tables.forEach((table, index) => {
             const headers = [];
             const rows = [];
 
-            // 提取表头
-            const headerCells = table.querySelectorAll('th');
-            headerCells.forEach(cell => {
-                headers.push(cell.textContent.trim());
-            });
+            console.log(`处理表格 ${index + 1}:`, table);
 
-            // 提取数据行
-            const dataRows = table.querySelectorAll('tbody tr, tr');
-            dataRows.forEach(row => {
-                const rowData = [];
-                const cells = row.querySelectorAll('td, th');
-                cells.forEach(cell => {
-                    rowData.push(cell.textContent.trim());
-                });
-                if (rowData.length > 0 && !headers.includes(rowData.join(''))) {
-                    rows.push(rowData);
+            // 提取表头 - 多种方式
+            let headerCells = table.querySelectorAll('th');
+            
+            // 如果没有th，尝试第一行作为表头
+            if (headerCells.length === 0) {
+                const firstRow = table.querySelector('tr');
+                if (firstRow) {
+                    headerCells = firstRow.querySelectorAll('td');
+                    console.log(`使用第一行作为表头，找到 ${headerCells.length} 个单元格`);
+                }
+            }
+
+            // 如果还是没有，尝试查找包含表头文本的元素
+            if (headerCells.length === 0) {
+                headerCells = table.querySelectorAll('td, th, div[role="columnheader"], .header-cell, .table-header');
+                console.log(`使用通用选择器找到 ${headerCells.length} 个可能的表头`);
+            }
+
+            headerCells.forEach(cell => {
+                const text = cell.textContent.trim();
+                if (text) {
+                    headers.push(text);
                 }
             });
 
+            console.log(`提取到表头:`, headers);
+
+            // 提取数据行 - 多种方式
+            let dataRows = table.querySelectorAll('tbody tr');
+            
+            // 如果没有tbody，直接查找所有tr
+            if (dataRows.length === 0) {
+                dataRows = table.querySelectorAll('tr');
+                // 如果第一行是表头，跳过它
+                if (dataRows.length > 0 && headers.length > 0) {
+                    dataRows = Array.from(dataRows).slice(1);
+                }
+            }
+
+            // 如果还是没有tr，尝试查找其他行结构
+            if (dataRows.length === 0) {
+                dataRows = table.querySelectorAll('div[role="row"], .table-row, .data-row');
+            }
+
+            console.log(`找到 ${dataRows.length} 个数据行`);
+
+            dataRows.forEach((row, rowIndex) => {
+                const rowData = [];
+                const cells = row.querySelectorAll('td, th, div[role="cell"], .table-cell, .data-cell');
+                
+                cells.forEach(cell => {
+                    const text = cell.textContent.trim();
+                    rowData.push(text);
+                });
+
+                if (rowData.length > 0) {
+                    rows.push(rowData);
+                    console.log(`行 ${rowIndex + 1}:`, rowData);
+                }
+            });
+
+            // 只要有表头或数据行就认为是有效表格
             if (headers.length > 0 || rows.length > 0) {
-                pageData.tables.push({
+                const tableInfo = {
                     index: index,
                     headers: headers,
                     rows: rows
-                });
+                };
+                pageData.tables.push(tableInfo);
+                console.log(`✅ 成功提取表格 ${index + 1}:`, tableInfo);
             }
         });
 
@@ -1259,7 +1309,27 @@ class DeepSeekAssistant {
         
         pageData.mainContent = mainContent;
 
-        console.log('📊 提取的页面数据:', pageData);
+        console.log('📊 提取的页面数据总结:');
+        console.log(`- 找到表格数量: ${pageData.tables.length}`);
+        console.log(`- 找到列表数量: ${pageData.lists.length}`);
+        console.log(`- 主要内容长度: ${pageData.mainContent.length}`);
+        
+        if (pageData.tables.length > 0) {
+            pageData.tables.forEach((table, index) => {
+                console.log(`表格 ${index + 1}: ${table.headers.length} 个表头, ${table.rows.length} 行数据`);
+            });
+        } else {
+            console.warn('⚠️ 未找到任何表格数据');
+            // 额外调试信息
+            console.log('页面中的所有元素统计:');
+            console.log(`- table元素: ${document.querySelectorAll('table').length}`);
+            console.log(`- tr元素: ${document.querySelectorAll('tr').length}`);
+            console.log(`- td元素: ${document.querySelectorAll('td').length}`);
+            console.log(`- th元素: ${document.querySelectorAll('th').length}`);
+            console.log(`- 包含"table"类的元素: ${document.querySelectorAll('.table, [class*="table"]').length}`);
+        }
+        
+        console.log('完整页面数据:', pageData);
         return pageData;
     }
 
@@ -1367,10 +1437,11 @@ class DeepSeekAssistant {
         // 这里可以实现自动分析逻辑
         console.log('表格内容发生变化');
         
-        // 例如：自动提供建议
-        setTimeout(() => {
-            this.autoSuggest();
-        }, 1000); // 延迟1秒，避免频繁触发
+        // 暂时禁用自动建议，避免无限循环API调用
+        // TODO: 未来可以添加更智能的变化检测逻辑
+        // setTimeout(() => {
+        //     this.autoSuggest();
+        // }, 1000); // 延迟1秒，避免频繁触发
     }
 
     // 自动建议
@@ -1490,7 +1561,7 @@ class DeepSeekAssistant {
             this.showThinkingIndicator();
             this.pendingChanges = [];
 
-            const maxFields = Math.min(missingFields.length, 3); // 严格限制处理数量避免费用过高
+            const maxFields = Math.min(missingFields.length, 15); // 恢复正常处理数量
             let processedCount = 0;
 
             for (const missingField of missingFields.slice(0, maxFields)) {
@@ -1510,8 +1581,7 @@ class DeepSeekAssistant {
                     
                     processedCount++;
                     
-                    // 添加延迟避免API限制和费用过高
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // 移除延迟，按用户要求
                     
                 } catch (error) {
                     console.error('生成建议失败:', error);
@@ -1725,21 +1795,7 @@ ${Object.entries(context).map(([key, value]) => `${key}: ${value}`).join('\n')}
         console.log(`状态: ${message}`);
     }
 
-    // 新增：更新API使用统计
-    updateApiUsage() {
-        const usageElement = document.getElementById('api-usage');
-        if (usageElement) {
-            usageElement.textContent = `今日API调用: ${this.apiCallCount}/${this.maxDailyApiCalls}`;
-            
-            if (this.apiCallCount >= this.maxDailyApiCalls) {
-                usageElement.className = 'api-usage danger';
-            } else if (this.apiCallCount >= this.maxDailyApiCalls * 0.8) {
-                usageElement.className = 'api-usage warning';
-            } else {
-                usageElement.className = 'api-usage';
-            }
-        }
-    }
+    // API使用统计方法已移除，按用户要求
 
     // 新增：计算置信度
     calculateConfidence(suggestion, rules) {
