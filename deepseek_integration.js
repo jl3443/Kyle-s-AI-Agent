@@ -1065,32 +1065,9 @@ class DeepSeekAssistant {
         console.log('🔄 开始调用DeepSeek API');
         let response;
         
-        try {
-            // 方法1：尝试直接调用（可能被CSP阻止）
-            console.log('尝试方法1：直接API调用');
-            response = await fetch(this.apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: messages,
-                    temperature: 0.7,
-                    max_tokens: model === 'deepseek-reasoner' ? 200 : 100  // 严格限制token避免费用过高
-                })
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                const aiResponse = data.choices[0].message.content;
-                console.log('✅ 直接API调用成功');
-                return { content: aiResponse, suggestions: [] };
-            }
-        } catch (error) {
-            console.log('❌ 直接API调用失败:', error.message);
-        }
+        // 跳过直接API调用，避免CORS问题导致的无效扣费
+        // 直接API调用会被浏览器CORS策略阻止，但仍会向DeepSeek发送请求并扣费
+        console.log('⚠️ 跳过直接API调用，避免CORS导致的无效扣费');
         
         try {
             // 方法2：通过本地代理服务器
