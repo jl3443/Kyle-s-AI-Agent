@@ -1124,6 +1124,26 @@ class DeepSeekAssistant {
 
         console.log('🔍 开始提取表格数据');
         console.log('当前页面URL:', window.location.href);
+        
+        // 调试：输出页面的主要DOM结构
+        console.log('📋 页面DOM结构分析:');
+        const allElements = document.querySelectorAll('*');
+        const elementStats = {};
+        allElements.forEach(el => {
+            const tag = el.tagName.toLowerCase();
+            elementStats[tag] = (elementStats[tag] || 0) + 1;
+        });
+        console.log('元素统计:', elementStats);
+        
+        // 特别关注可能的表格相关元素
+        const tableRelated = ['table', 'tr', 'td', 'th', 'tbody', 'thead'];
+        tableRelated.forEach(tag => {
+            const elements = document.querySelectorAll(tag);
+            console.log(`${tag}元素: ${elements.length} 个`);
+            if (elements.length > 0 && elements.length <= 5) {
+                elements.forEach((el, i) => console.log(`  ${tag}[${i}]:`, el));
+            }
+        });
 
         // 1. 多种方式提取表格数据
         // 方法1：标准table元素
@@ -1132,8 +1152,27 @@ class DeepSeekAssistant {
 
         // 方法2：腾讯文档特殊选择器
         if (tables.length === 0) {
-            tables = document.querySelectorAll('.ql-editor table, .docs-table, .online-table, [data-table]');
-            console.log(`腾讯文档选择器找到 ${tables.length} 个表格`);
+            // 腾讯文档可能的选择器
+            const tencentSelectors = [
+                '.ql-editor table',
+                '.docs-table', 
+                '.online-table',
+                '[data-table]',
+                '.docs-editor table',
+                '.editor-content table',
+                '.ql-container table',
+                '.ql-snow table',
+                'div[data-type="table"]',
+                '.table-container table',
+                '.spreadsheet-table',
+                '.grid-table'
+            ];
+            
+            for (const selector of tencentSelectors) {
+                tables = document.querySelectorAll(selector);
+                console.log(`选择器 "${selector}" 找到 ${tables.length} 个表格`);
+                if (tables.length > 0) break;
+            }
         }
 
         // 方法3：通用表格结构检测
@@ -1142,7 +1181,41 @@ class DeepSeekAssistant {
             console.log(`通用选择器找到 ${tables.length} 个表格结构`);
         }
 
-        // 方法4：查找包含tr元素的容器
+        // 方法4：智能检测腾讯文档表格结构
+        if (tables.length === 0) {
+            console.log('🔍 开始智能检测腾讯文档表格结构...');
+            
+            // 查找可能包含表格数据的div结构
+            const potentialTables = document.querySelectorAll('div');
+            const detectedTables = [];
+            
+            potentialTables.forEach(div => {
+                // 检查是否包含类似表格的结构
+                const rows = div.querySelectorAll('div, tr');
+                const cells = div.querySelectorAll('td, th, span, p');
+                
+                // 启发式检测：如果一个div包含多个子元素，且这些元素排列整齐
+                if (rows.length >= 2 && cells.length >= 4) {
+                    // 检查是否有规律的网格布局
+                    const style = window.getComputedStyle(div);
+                    if (style.display === 'grid' || 
+                        style.display === 'table' || 
+                        div.className.includes('table') ||
+                        div.className.includes('grid') ||
+                        div.getAttribute('role') === 'table') {
+                        detectedTables.push(div);
+                        console.log('🎯 检测到可能的表格结构:', div);
+                    }
+                }
+            });
+            
+            if (detectedTables.length > 0) {
+                tables = detectedTables;
+                console.log(`智能检测找到 ${tables.length} 个可能的表格`);
+            }
+        }
+
+        // 方法5：查找包含tr元素的容器
         if (tables.length === 0) {
             const trElements = document.querySelectorAll('tr');
             if (trElements.length > 0) {
