@@ -4,6 +4,25 @@ chrome.runtime.onInstalled.addListener(() => {
     console.log('DeepSeek AI助手已安装');
 });
 
+// 监听快捷键命令 - 暂时禁用，让页面内监听器处理
+// chrome.commands.onCommand.addListener((command) => {
+//     console.log('🎹 收到快捷键命令:', command);
+//     
+//     if (command === 'toggle-sidebar') {
+//         // 向当前活动标签页发送切换消息
+//         chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+//             if (tabs[0]) {
+//                 chrome.tabs.sendMessage(tabs[0].id, {
+//                     type: 'TOGGLE_SIDEBAR'
+//                 }).catch(error => {
+//                     console.log('发送切换消息失败:', error.message);
+//                     // 可能是页面还没有注入内容脚本，忽略错误
+//                 });
+//             }
+//         });
+//     }
+// });
+
 // 处理来自内容脚本的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_API_KEY') {

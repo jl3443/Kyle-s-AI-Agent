@@ -35,5 +35,14 @@
   
   "background": {
     "service_worker": "background.js"
+  },
+  
+  "commands": {
+    "toggle-sidebar": {
+      "suggested_key": {
+        "default": "Ctrl+Q"
+      },
+      "description": "切换AI助手显示/隐藏"
+    }
   }
 }

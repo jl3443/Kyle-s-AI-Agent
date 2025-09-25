@@ -344,7 +344,9 @@ class DeepSeekAssistant {
         this.createAISidebar();
         // 延迟设置事件监听，确保DOM元素已创建
         setTimeout(() => {
+            console.log('⏰ 开始延迟初始化...');
             this.setupEventListeners();
+            console.log('✅ 事件监听器设置完成');
         }, 100);
         this.isInitialized = true;
         console.log('DeepSeek AI助手已初始化');
@@ -848,6 +850,7 @@ class DeepSeekAssistant {
     setupEventListeners() {
         console.log('开始设置事件监听器');
         
+        
         // 发送消息
         const sendBtn = document.getElementById('ai-send');
         const inputField = document.getElementById('ai-input');
@@ -1077,7 +1080,7 @@ class DeepSeekAssistant {
                     "7. AI功能亮点：具体描述AI创新点\n" +
                     "8. 积极填写所有字段，避免使用'未知'\n\n" +
                     "字段选项：\n" +
-                    "参考价值：1星-5星（根据公司知名度和市场地位）\n" +
+                    "参考价值：1星（不相关）-5星（很有参考价值）\n" +
                     "应用赛道：银行｜保险｜信贷｜支付｜资产管理｜财富管理｜内部运营｜Web3\n" +
                     "发展阶段：种子轮｜A轮｜B轮｜C轮｜D轮及更多｜上市｜成熟期\n" +
                     "业务模式：To B｜To C｜SaaS｜平台型（可组合）\n" +
@@ -1409,7 +1412,11 @@ class DeepSeekAssistant {
             'window.TDOCS',
             'window.__webpack_require__',
             'window.webpackJsonp',
-            'window.modules'
+            'window.modules',
+            'window.basicClientVars',
+            'window.AppConfig',
+            'window.__INITIAL_STATE__',
+            'window.store'
         ];
         
         tencentDataChecks.forEach(check => {
@@ -1432,15 +1439,439 @@ class DeepSeekAssistant {
             }
         });
         
-        // 6. 尝试监听网络请求中的数据
+        // 6. 尝试通过Canvas上下文获取渲染信息
+        console.log('🎨 尝试从Canvas获取表格数据...');
+        canvases.forEach((canvas, i) => {
+            if (canvas.width > 0 && canvas.height > 0) {
+                try {
+                    // 尝试获取Canvas的渲染上下文
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        console.log(`Canvas ${i + 1} 渲染上下文可用，尺寸: ${canvas.width}x${canvas.height}`);
+                        
+                        // 检查Canvas是否有关联的数据属性
+                        const canvasData = canvas.dataset;
+                        if (Object.keys(canvasData).length > 0) {
+                            console.log(`Canvas ${i + 1} 数据属性:`, canvasData);
+                        }
+                        
+                        // 检查Canvas父元素的事件监听器（可能包含数据操作）
+                        const parent = canvas.parentElement;
+                        if (parent && parent.onclick) {
+                            console.log(`Canvas ${i + 1} 父元素有点击事件`);
+                        }
+                    }
+                } catch (e) {
+                    console.log(`Canvas ${i + 1} 上下文获取失败:`, e.message);
+                }
+            }
+        });
+        
+        // 7. 尝试查找React/Vue组件实例（腾讯文档可能使用前端框架）
+        console.log('⚛️ 查找前端框架组件实例...');
+        const reactFiberKey = Object.keys(document.body).find(key => key.startsWith('__reactInternalInstance') || key.startsWith('_reactInternalFiber'));
+        if (reactFiberKey) {
+            console.log('🔍 发现React组件，尝试获取数据');
+            try {
+                const fiberNode = document.body[reactFiberKey];
+                console.log('React Fiber节点类型:', typeof fiberNode);
+            } catch (e) {
+                console.log('React数据获取失败:', e.message);
+            }
+        }
+        
+        // 8. 尝试监听网络请求中的数据
         console.log('🌐 检查是否有数据API调用...');
         
         // 检查performance entries中的网络请求
         if (window.performance && window.performance.getEntriesByType) {
             const networkEntries = window.performance.getEntriesByType('resource')
-                .filter(entry => entry.name.includes('api') || entry.name.includes('data'))
-                .slice(-5); // 最近5个
-            console.log('📡 最近的API请求:', networkEntries.map(e => e.name));
+                .filter(entry => entry.name.includes('api') || entry.name.includes('data') || entry.name.includes('sheet'))
+                .slice(-10); // 最近10个
+            console.log('📡 最近的相关API请求:', networkEntries.map(e => e.name));
+        }
+        
+        // 9. 智能表格数据提取（适配腾讯文档Canvas渲染）
+        console.log('🎯 开始智能表格数据提取...');
+        
+        // 等待数据加载并尝试多种方法提取
+        const extractTableDataAsync = () => {
+            return new Promise((resolve) => {
+                let attempts = 0;
+                const maxAttempts = 3;
+                
+                const tryExtract = () => {
+                    attempts++;
+                    console.log(`📊 尝试提取数据 (${attempts}/${maxAttempts})`);
+                    
+                    // 方法1: 检查可选择的单元格 - 扩展腾讯文档选择器
+                    // 更精确的腾讯文档选择器，避免选中UI元素
+                    const selectableElements = document.querySelectorAll([
+                        // 标准表格选择器
+                        '[role="gridcell"]', '.cell', '.grid-cell', '[data-row]', '[data-col]',
+                        'td', 'th', 'tr > div', 'tr > span',
+                        // 腾讯文档数据区域选择器（更精确）
+                        '.excel-container canvas + div div', // Canvas后的数据div
+                        '.excel-container [style*="position"]', // 定位元素可能是单元格
+                        '[class*="cell"]:not([class*="button"]):not([class*="toolbar"])', // 排除按钮和工具栏
+                        '[id*="cell"]:not([id*="button"])', // 排除按钮
+                        // 查找可能的数据容器
+                        '.excel-container > div > div > div', // 深层数据div
+                        'div[style*="left:"]:not([class*="toolbar"]):not([class*="menu"])', // 有定位的非UI元素
+                    ].join(', '));
+                    
+                    console.log(`🔍 找到 ${selectableElements.length} 个可能的单元格`);
+                    
+                    // 分析所有元素，了解数据分布
+                    console.log('🔍 分析所有候选元素:');
+                    const elementAnalysis = Array.from(selectableElements).slice(0, 20).map((el, i) => {
+                        const text = el.textContent?.trim();
+                        const rect = el.getBoundingClientRect();
+                        return {
+                            index: i,
+                            text: text?.substring(0, 50) + (text?.length > 50 ? '...' : ''),
+                            length: text?.length || 0,
+                            width: Math.round(rect.width),
+                            height: Math.round(rect.height),
+                            tagName: el.tagName,
+                            className: el.className || 'no-class'
+                        };
+                    });
+                    console.table(elementAnalysis);
+                    
+                    // 进一步过滤，使用更宽松的条件
+                    const filteredElements = Array.from(selectableElements).filter(el => {
+                        const text = el.textContent?.trim();
+                        const rect = el.getBoundingClientRect();
+                        
+                        // 更宽松的过滤条件
+                        const hasText = text && text.length > 0 && text.length < 1000;
+                        const hasSize = rect.width > 5 && rect.height > 5; // 更宽松的尺寸要求
+                        const notEmpty = text && !/^[\s\n\t]*$/.test(text); // 不是纯空白
+                        
+                        // 只排除明显的UI元素
+                        const notUIElement = text && 
+                                           !text.includes('添加行') && 
+                                           !text.includes('删除行') &&
+                                           !text.includes('工具栏') &&
+                                           !text.includes('菜单栏') &&
+                                           !text.includes('按钮');
+                        
+                        return hasText && hasSize && notEmpty && notUIElement;
+                    });
+                    
+                    console.log(`🎯 过滤后剩余 ${filteredElements.length} 个有效单元格`);
+                    
+                    // 如果还是没有，显示被过滤掉的原因
+                    if (filteredElements.length === 0) {
+                        console.log('❌ 所有元素都被过滤，分析原因:');
+                        const reasons = Array.from(selectableElements).slice(0, 10).map(el => {
+                            const text = el.textContent?.trim();
+                            const rect = el.getBoundingClientRect();
+                            const reasons = [];
+                            
+                            if (!text || text.length === 0) reasons.push('无文本');
+                            if (text && text.length >= 1000) reasons.push('文本过长');
+                            if (rect.width <= 5) reasons.push('宽度过小');
+                            if (rect.height <= 5) reasons.push('高度过小');
+                            if (text && /^[\s\n\t]*$/.test(text)) reasons.push('纯空白');
+                            
+                            return {
+                                text: text?.substring(0, 30) + '...',
+                                reasons: reasons.join(', ') || '通过所有检查'
+                            };
+                        });
+                        console.table(reasons);
+                    }
+                    
+                    // 如果过滤后元素太少，尝试其他方法
+                    let elementsToProcess = filteredElements;
+                    if (filteredElements.length < 10) {
+                        console.log('⚠️ 过滤后元素太少，尝试直接从表格容器提取...');
+                        
+                        // 尝试从excel-container中找所有可能的数据元素
+                        const excelContainer = document.querySelector('.excel-container');
+                        if (excelContainer) {
+                            // 扩大搜索范围，包括所有可能的数据元素
+                            const dataElements = excelContainer.querySelectorAll('div, span, p, td, th');
+                            console.log(`🔍 从excel-container找到 ${dataElements.length} 个所有元素`);
+                            
+                            // 分析这些元素
+                            const analysisData = Array.from(dataElements).slice(0, 10).map((el, i) => {
+                                const text = el.textContent?.trim();
+                                const rect = el.getBoundingClientRect();
+                                return {
+                                    index: i,
+                                    tag: el.tagName,
+                                    text: text?.substring(0, 30) + '...',
+                                    length: text?.length || 0,
+                                    width: Math.round(rect.width),
+                                    height: Math.round(rect.height)
+                                };
+                            });
+                            console.table(analysisData);
+                            
+                            // 使用更宽松的过滤条件
+                            const validDataElements = Array.from(dataElements).filter(el => {
+                                const text = el.textContent?.trim();
+                                const rect = el.getBoundingClientRect();
+                                
+                                return text && 
+                                       text.length > 0 && 
+                                       text.length < 1000 && // 更宽松的长度限制
+                                       rect.width > 5 && 
+                                       rect.height > 5 &&
+                                       !/^[\s\n\t]*$/.test(text) && // 不是纯空白
+                                       !text.includes('添加行') && // 只排除明显的UI
+                                       !text.includes('删除行');
+                            });
+                            
+                            console.log(`🎯 找到 ${validDataElements.length} 个有效数据元素`);
+                            
+                            // 显示找到的数据样本
+                            if (validDataElements.length > 0) {
+                                const samples = validDataElements.slice(0, 10).map(el => el.textContent?.trim().substring(0, 50));
+                                console.log('📊 数据样本:', samples);
+                                
+                                elementsToProcess = validDataElements;
+                                console.log('✅ 使用excel-container中的数据元素');
+                            }
+                        }
+                    }
+                    
+                    if (elementsToProcess.length > 0) {
+                        const cellData = Array.from(elementsToProcess).map((cell, i) => {
+                            const text = cell.textContent?.trim();
+                            if (text && text.length > 0 && text.length < 500) { // 增加文本长度限制
+                                // 更智能的行列识别
+                                let row = cell.getAttribute('data-row') || cell.getAttribute('row');
+                                let col = cell.getAttribute('data-col') || cell.getAttribute('col');
+                                
+                                // 尝试从父元素或位置推断行列
+                                if (!row || !col) {
+                                    const rect = cell.getBoundingClientRect();
+                                    const estimatedCol = Math.floor(rect.left / 100); // 假设每列约100px
+                                    const estimatedRow = Math.floor(rect.top / 30);   // 假设每行约30px
+                                    
+                                    row = row || estimatedRow;
+                                    col = col || estimatedCol;
+                                }
+                                
+                                // 如果还是没有，使用更合理的推算
+                                if (!row && !col) {
+                                    // 假设表格有合理的列数（比如10-20列）
+                                    const estimatedCols = Math.min(20, Math.ceil(Math.sqrt(elementsToProcess.length)));
+                                    row = Math.floor(i / estimatedCols);
+                                    col = i % estimatedCols;
+                                }
+                                
+                                return {
+                                    index: i,
+                                    text: text,
+                                    row: parseInt(row) || 0,
+                                    col: parseInt(col) || 0,
+                                    element: cell
+                                };
+                            }
+                            return null;
+                        }).filter(Boolean);
+                        
+                        if (cellData.length > 5) {
+                            console.log('✅ 通过单元格提取到数据:', cellData.length, '个');
+                            console.log('📊 数据样本:', cellData.slice(0, 10).map(cell => `[${cell.row},${cell.col}] "${cell.text}"`));
+                            
+                            // 分析行列分布
+                            const rowSet = new Set(cellData.map(cell => cell.row));
+                            const colSet = new Set(cellData.map(cell => cell.col));
+                            console.log(`📏 检测到 ${rowSet.size} 行, ${colSet.size} 列`);
+                            console.log(`📏 行范围: ${Math.min(...rowSet)} - ${Math.max(...rowSet)}`);
+                            console.log(`📏 列范围: ${Math.min(...colSet)} - ${Math.max(...colSet)}`);
+                            
+                            const table = this.buildTableFromCells(cellData);
+                            if (table) {
+                                pageData.tables.push(table);
+                                resolve(pageData);
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // 方法2: 检查表格容器内的文本
+                    const excelContainer = document.querySelector('.excel-container');
+                    if (excelContainer) {
+                        const allText = excelContainer.innerText?.trim();
+                        if (allText && allText.length > 50) {
+                            console.log('📄 从容器文本提取数据，长度:', allText.length);
+                            console.log('📄 容器文本预览:', allText.substring(0, 200) + '...');
+                            const table = this.buildTableFromText(allText);
+                            if (table) {
+                                pageData.tables.push(table);
+                                resolve(pageData);
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // 方法3: 尝试解析脚本标签中的数据
+                    if (attempts === 2) {
+                        console.log('📜 尝试解析脚本标签中的表格数据...');
+                        const scripts = document.querySelectorAll('script');
+                        console.log(`🔍 找到 ${scripts.length} 个脚本标签`);
+                        
+                        for (let i = 0; i < scripts.length; i++) {
+                            const script = scripts[i];
+                            const content = script.textContent || script.innerHTML;
+                            
+                            if (content && (content.includes('sheet') || content.includes('cell') || content.includes('row') || content.includes('data'))) {
+                                console.log(`📜 Script ${i} 可能包含表格数据，长度: ${content.length}`);
+                                
+                                // 尝试提取JSON数据
+                                const jsonMatches = content.match(/\{[^{}]*"[^"]*":[^{}]*\}/g);
+                                if (jsonMatches && jsonMatches.length > 0) {
+                                    console.log(`📊 Script ${i} 找到 ${jsonMatches.length} 个JSON对象`);
+                                    jsonMatches.slice(0, 3).forEach((match, j) => {
+                                        console.log(`JSON ${j}: ${match.substring(0, 100)}...`);
+                                    });
+                                }
+                                
+                                // 尝试提取数组数据
+                                const arrayMatches = content.match(/\[[^\[\]]*\]/g);
+                                if (arrayMatches && arrayMatches.length > 0) {
+                                    console.log(`📊 Script ${i} 找到 ${arrayMatches.length} 个数组`);
+                                    arrayMatches.slice(0, 3).forEach((match, j) => {
+                                        if (match.length > 10 && match.length < 500) {
+                                            console.log(`Array ${j}: ${match}`);
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 方法4: 模拟滚动和点击来触发数据显示
+                    if (attempts === 1) {
+                        console.log('🖱️ 尝试模拟用户交互...');
+                        this.simulateTableInteraction();
+                    }
+                    
+                    // 继续尝试或放弃
+                    if (attempts < maxAttempts) {
+                        setTimeout(tryExtract, 2000); // 等待2秒后重试
+                    } else {
+                        console.log('❌ 多次尝试后仍未找到表格数据');
+                        resolve(pageData);
+                    }
+                };
+                
+                tryExtract();
+            });
+        };
+        
+        // 如果是腾讯文档，使用异步提取
+        if (window.location.href.includes('doc.weixin.qq.com')) {
+            console.log('🔄 检测到腾讯文档，启用异步数据提取...');
+            
+            // 添加更多环境诊断信息
+            console.log('🔍 页面环境诊断:');
+            console.log('- 页面标题:', document.title);
+            console.log('- 页面URL:', window.location.href);
+            console.log('- 是否包含sheet:', window.location.href.includes('sheet'));
+            console.log('- 页面加载状态:', document.readyState);
+            
+            // 检查关键容器
+            const containers = {
+                'excel-container': document.querySelector('.excel-container'),
+                'main-board': document.querySelector('.main-board'), 
+                'sheet-container': document.querySelector('.sheet-container'),
+                'table-container': document.querySelector('.table-container'),
+                'spreadsheet': document.querySelector('.spreadsheet'),
+                'grid': document.querySelector('.grid')
+            };
+            
+            console.log('🏗️ 关键容器检查:');
+            Object.entries(containers).forEach(([name, element]) => {
+                if (element) {
+                    console.log(`✅ ${name}:`, {
+                        tagName: element.tagName,
+                        className: element.className,
+                        childCount: element.children.length,
+                        textLength: element.textContent?.length || 0
+                    });
+                } else {
+                    console.log(`❌ ${name}: 未找到`);
+                }
+            });
+            
+            // 检查Canvas元素的详细信息
+            const canvases = document.querySelectorAll('canvas');
+            console.log(`🎨 Canvas元素详细信息 (${canvases.length}个):`);
+            canvases.forEach((canvas, i) => {
+                const rect = canvas.getBoundingClientRect();
+                console.log(`Canvas ${i+1}:`, {
+                    id: canvas.id || 'no-id',
+                    width: canvas.width,
+                    height: canvas.height,
+                    actualWidth: Math.round(rect.width),
+                    actualHeight: Math.round(rect.height),
+                    parentClass: canvas.parentElement?.className || 'no-parent-class'
+                });
+            });
+            
+            // 专门探测腾讯文档的数据存储方式
+            console.log('🕵️ 深度探测腾讯文档数据存储:');
+            
+            // 首先检查表格是否可用
+            const pageText = document.body.innerText;
+            if (pageText.includes('表格已不再使用') || 
+                pageText.includes('The sheet is no longer in use') ||
+                pageText.includes('同步新智能表格') ||
+                pageText.includes('重新啟用此表格')) {
+                console.log('⚠️ 检测到表格可能已被禁用或迁移！');
+                console.log('📄 页面提示信息:', pageText.split('\n').filter(line => 
+                    line.includes('表格') || line.includes('sheet') || line.includes('智能')
+                ).slice(0, 5));
+                
+                // 寻找"同步新智能表格"或类似的按钮
+                const migrationButtons = document.querySelectorAll('button, a, div[role="button"]');
+                const relevantButtons = Array.from(migrationButtons).filter(btn => {
+                    const text = btn.textContent?.trim();
+                    return text && (
+                        text.includes('同步') || 
+                        text.includes('智能表格') || 
+                        text.includes('新表格') ||
+                        text.includes('启用')
+                    );
+                });
+                
+                if (relevantButtons.length > 0) {
+                    console.log('🔘 找到可能的迁移/启用按钮:');
+                    relevantButtons.forEach((btn, i) => {
+                        console.log(`${i+1}. "${btn.textContent?.trim()}" (${btn.tagName})`);
+                    });
+                    console.log('💡 建议：可能需要点击这些按钮来访问真实的表格数据');
+                }
+            }
+            
+            this.probeTencentDocsData();
+            
+            // 启动异步提取，但不等待结果，让同步代码继续执行
+            extractTableDataAsync().then(result => {
+                if (result.tables.length > 0) {
+                    console.log('✅ 异步提取成功，找到', result.tables.length, '个表格');
+                    // 更新页面数据
+                    pageData.tables = result.tables;
+                    
+                    // 触发表格数据更新事件
+                    const event = new CustomEvent('tableDataExtracted', { 
+                        detail: { tables: result.tables } 
+                    });
+                    document.dispatchEvent(event);
+                } else {
+                    console.log('⚠️ 异步提取未找到表格数据');
+                }
+            }).catch(error => {
+                console.log('❌ 异步提取失败:', error);
+            });
         }
             
             // 查找可能包含表格数据的div结构
@@ -1665,6 +2096,287 @@ class DeepSeekAssistant {
         return pageData;
     }
 
+    // 新增：从单元格数据构建表格结构
+    buildTableFromCells(cellData) {
+        if (!cellData || cellData.length < 2) return null;
+        
+        console.log('🔧 从单元格数据构建表格...');
+        console.log(`📊 输入数据: ${cellData.length} 个单元格`);
+        
+        // 按行分组
+        const rowGroups = {};
+        cellData.forEach(cell => {
+            const row = parseInt(cell.row) || 0;
+            if (!rowGroups[row]) rowGroups[row] = [];
+            rowGroups[row].push(cell);
+        });
+        
+        const sortedRows = Object.keys(rowGroups).sort((a, b) => parseInt(a) - parseInt(b));
+        console.log(`📊 分组后: ${sortedRows.length} 行`);
+        console.log(`📊 各行数据量:`, sortedRows.map(row => `行${row}:${rowGroups[row].length}个`).join(', '));
+        
+        if (sortedRows.length < 2) {
+            console.log('❌ 行数不足，至少需要2行（表头+数据）');
+            return null;
+        }
+        
+        // 第一行作为表头
+        const headerRow = rowGroups[sortedRows[0]].sort((a, b) => (parseInt(a.col) || 0) - (parseInt(b.col) || 0));
+        const headers = headerRow.map(cell => cell.text);
+        
+        // 其余行作为数据
+        const rows = [];
+        for (let i = 1; i < sortedRows.length; i++) { // 提取所有数据行
+            const rowData = rowGroups[sortedRows[i]].sort((a, b) => (parseInt(a.col) || 0) - (parseInt(b.col) || 0));
+            if (rowData.length > 0) {
+                rows.push(rowData.map(cell => cell.text));
+            }
+        }
+        
+        if (headers.length > 0 && rows.length > 0) {
+            console.log('✅ 成功构建表格:', headers.length, '列,', rows.length, '行');
+            return {
+                index: 0,
+                headers: headers,
+                rows: rows
+            };
+        }
+        
+        return null;
+    }
+
+    // 新增：从文本内容构建表格结构
+    buildTableFromText(text) {
+        if (!text || text.length < 20) return null;
+        
+        console.log('🔧 从文本内容构建表格...');
+        
+        // 尝试按行分割
+        const lines = text.split('\n').filter(line => line.trim().length > 0);
+        if (lines.length < 3) return null; // 至少需要表头+2行数据
+        
+        // 检查是否有表格样的结构（包含制表符或多个空格分隔）
+        const tabSeparated = lines.filter(line => line.includes('\t'));
+        const spaceSeparated = lines.filter(line => line.match(/\s{2,}/));
+        
+        let tableLines = [];
+        if (tabSeparated.length >= 3) {
+            tableLines = tabSeparated; // 提取所有表格行
+        } else if (spaceSeparated.length >= 3) {
+            tableLines = spaceSeparated; // 提取所有表格行
+        } else {
+            // 尝试其他分割方式
+            const potentialLines = lines.filter(line => 
+                line.split(/\s+/).length >= 3 && line.split(/\s+/).length <= 20
+            );
+            if (potentialLines.length >= 3) {
+                tableLines = potentialLines; // 提取所有表格行
+            }
+        }
+        
+        if (tableLines.length >= 3) {
+            const headers = tableLines[0].split(/\t|\s{2,}/).filter(h => h.trim().length > 0);
+            const rows = tableLines.slice(1).map(line => 
+                line.split(/\t|\s{2,}/).filter(cell => cell.trim().length > 0)
+            ).filter(row => row.length > 0);
+            
+            if (headers.length > 0 && rows.length > 0) {
+                console.log('✅ 从文本构建表格:', headers.length, '列,', rows.length, '行');
+                return {
+                    index: 0,
+                    headers: headers,
+                    rows: rows
+                };
+            }
+        }
+        
+        return null;
+    }
+
+    // 新增：专门探测腾讯文档的数据存储方式
+    probeTencentDocsData() {
+        console.log('🔍 探测window对象中的表格数据...');
+        
+        // 检查window对象中可能的数据存储
+        const windowKeys = Object.keys(window).filter(key => 
+            key.includes('sheet') || 
+            key.includes('table') || 
+            key.includes('data') || 
+            key.includes('cell') ||
+            key.includes('excel') ||
+            key.includes('grid')
+        );
+        
+        console.log('🌐 Window对象中相关的键:', windowKeys);
+        
+        // 检查一些常见的数据存储位置
+        const dataLocations = [
+            'window.__INITIAL_STATE__',
+            'window.__APP_DATA__',
+            'window.__SHEET_DATA__',
+            'window.__TABLE_DATA__',
+            'window.sheetData',
+            'window.tableData',
+            'window.cellData',
+            'window.spreadsheetData'
+        ];
+        
+        dataLocations.forEach(location => {
+            try {
+                const data = eval(location);
+                if (data) {
+                    console.log(`✅ 找到数据在 ${location}:`, typeof data, Object.keys(data || {}).slice(0, 10));
+                }
+            } catch (e) {
+                // 忽略错误，这是正常的
+            }
+        });
+        
+        // 尝试从页面上可见的文本中寻找表格数据
+        console.log('📄 尝试从页面可见文本中寻找真实数据...');
+        const pageText = document.body.innerText;
+        const lines = pageText.split('\n').filter(line => line.trim().length > 0);
+        
+        // 寻找可能的公司名称
+        const possibleCompanies = lines.filter(line => {
+            const text = line.trim();
+            return text.length > 3 && 
+                   text.length < 50 && 
+                   !text.includes('卢君洋') &&
+                   !text.includes('添加') &&
+                   !text.includes('删除') &&
+                   !text.includes('工具') &&
+                   (text.includes('AI') || 
+                    text.includes('Tech') || 
+                    text.includes('Corp') ||
+                    text.includes('Inc') ||
+                    text.includes('Ltd') ||
+                    /^[A-Z][a-zA-Z]+/.test(text)); // 以大写字母开头的英文
+        });
+        
+        console.log('🏢 可能的公司名称:', possibleCompanies.slice(0, 10));
+        
+        // 检查是否有评级信息
+        const possibleRatings = lines.filter(line => {
+            return line.includes('星') || line.includes('Star') || /[1-5]星/.test(line);
+        });
+        
+        console.log('⭐ 可能的评级信息:', possibleRatings.slice(0, 5));
+        
+        // 尝试通过DOM遍历找到数据
+        console.log('🔍 通过DOM遍历寻找数据...');
+        this.traverseForTableData();
+    }
+    
+    // 新增：遍历DOM寻找表格数据
+    traverseForTableData() {
+        const excelContainer = document.querySelector('.excel-container');
+        if (!excelContainer) {
+            console.log('❌ 未找到.excel-container');
+            return;
+        }
+        
+        console.log('🏗️ 遍历excel-container的所有子元素...');
+        
+        // 递归遍历所有元素，寻找包含真实数据的元素
+        const findDataElements = (element, depth = 0) => {
+            if (depth > 10) return []; // 限制递归深度
+            
+            const results = [];
+            const text = element.textContent?.trim();
+            
+            // 检查当前元素是否包含有意义的数据
+            if (text && 
+                text.length > 2 && 
+                text.length < 100 &&
+                !text.includes('卢君洋') &&
+                !text.includes('添加') &&
+                !text.includes('删除') &&
+                element.children.length === 0) { // 叶子节点
+                
+                const rect = element.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                    results.push({
+                        text: text,
+                        tagName: element.tagName,
+                        className: element.className,
+                        width: Math.round(rect.width),
+                        height: Math.round(rect.height),
+                        left: Math.round(rect.left),
+                        top: Math.round(rect.top)
+                    });
+                }
+            }
+            
+            // 递归检查子元素
+            for (let child of element.children) {
+                results.push(...findDataElements(child, depth + 1));
+            }
+            
+            return results;
+        };
+        
+        const dataElements = findDataElements(excelContainer);
+        console.log(`📊 找到 ${dataElements.length} 个可能的数据元素:`);
+        
+        // 显示前20个数据元素
+        dataElements.slice(0, 20).forEach((elem, i) => {
+            console.log(`${i+1}. "${elem.text}" (${elem.tagName}, ${elem.width}x${elem.height})`);
+        });
+        
+        // 尝试按位置排序，看是否能发现表格结构
+        const sortedByPosition = dataElements.sort((a, b) => {
+            if (Math.abs(a.top - b.top) < 5) { // 同一行
+                return a.left - b.left; // 按列排序
+            }
+            return a.top - b.top; // 按行排序
+        });
+        
+        console.log('📍 按位置排序的前10个元素:');
+        sortedByPosition.slice(0, 10).forEach((elem, i) => {
+            console.log(`${i+1}. [${elem.left},${elem.top}] "${elem.text}"`);
+        });
+    }
+
+    // 新增：模拟表格交互来触发数据显示
+    simulateTableInteraction() {
+        console.log('🖱️ 模拟表格交互...');
+        
+        // 尝试点击表格区域
+        const excelContainer = document.querySelector('.excel-container');
+        if (excelContainer) {
+            // 模拟点击
+            const clickEvent = new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            });
+            excelContainer.dispatchEvent(clickEvent);
+            
+            // 模拟滚动来加载更多数据
+            excelContainer.scrollTop = 100;
+            excelContainer.scrollLeft = 100;
+            
+            setTimeout(() => {
+                excelContainer.scrollTop = 0;
+                excelContainer.scrollLeft = 0;
+            }, 500);
+        }
+        
+        // 尝试点击Canvas
+        const canvas = document.querySelector('canvas');
+        if (canvas && canvas.width > 0 && canvas.height > 0) {
+            const rect = canvas.getBoundingClientRect();
+            const clickEvent = new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                clientX: rect.left + 50,
+                clientY: rect.top + 50
+            });
+            canvas.dispatchEvent(clickEvent);
+        }
+    }
+
     // 添加消息到聊天界面
     addMessage(content, role) {
         const messagesContainer = document.getElementById('ai-messages');
@@ -1733,16 +2445,69 @@ class DeepSeekAssistant {
 
     // 切换侧边栏显示/隐藏
     toggleSidebar() {
+        console.log('🔄 开始执行 toggleSidebar 方法');
+        
         const sidebar = document.getElementById('deepseek-ai-sidebar');
-        const isHidden = sidebar.style.transform === 'translateX(100%)';
+        if (!sidebar) {
+            console.log('❌ AI助手侧边栏未找到，ID: deepseek-ai-sidebar');
+            console.log('🔍 当前页面所有ID元素:', Array.from(document.querySelectorAll('[id]')).map(el => el.id));
+            return;
+        }
+        
+        console.log('✅ 找到侧边栏元素');
+        console.log('📊 当前样式:', {
+            transform: sidebar.style.transform,
+            display: sidebar.style.display,
+            classList: Array.from(sidebar.classList)
+        });
+        
+        const isHidden = sidebar.style.transform === 'translateX(100%)' || 
+                        sidebar.style.display === 'none' ||
+                        sidebar.classList.contains('hidden');
+        
+        console.log('🔄 切换AI助手显示状态:', isHidden ? '显示' : '隐藏');
         
         if (isHidden) {
+            // 显示侧边栏
+            console.log('👁️ 执行显示操作...');
             sidebar.style.transform = 'translateX(0)';
-            document.getElementById('toggle-sidebar').textContent = '−';
+            sidebar.style.display = 'flex';
+            sidebar.classList.remove('hidden');
+            
+            // 更新切换按钮
+            const toggleBtn = document.getElementById('toggle-sidebar');
+            if (toggleBtn) {
+                toggleBtn.textContent = '−';
+                console.log('🔘 更新按钮为 "−"');
+            }
+            
+            // 显示成功提示
+            this.showTemporaryMessage('✅ AI助手已显示 (Ctrl+Q 切换)');
+            console.log('✅ 显示操作完成');
+            
         } else {
+            // 隐藏侧边栏
+            console.log('👁️‍🗨️ 执行隐藏操作...');
             sidebar.style.transform = 'translateX(100%)';
-            document.getElementById('toggle-sidebar').textContent = '+';
+            sidebar.classList.add('hidden');
+            
+            // 更新切换按钮
+            const toggleBtn = document.getElementById('toggle-sidebar');
+            if (toggleBtn) {
+                toggleBtn.textContent = '+';
+                console.log('🔘 更新按钮为 "+"');
+            }
+            
+            // 显示成功提示
+            this.showTemporaryMessage('✅ AI助手已隐藏 (Ctrl+Q 切换)');
+            console.log('✅ 隐藏操作完成');
         }
+        
+        console.log('📊 操作后样式:', {
+            transform: sidebar.style.transform,
+            display: sidebar.style.display,
+            classList: Array.from(sidebar.classList)
+        });
     }
 
     // 监听表格变化 - 完全禁用避免意外API调用
@@ -1776,17 +2541,59 @@ class DeepSeekAssistant {
         // const response = await this.callDeepSeekAPI(...);
     }
 
+    
+    
+    
+    // 新增：显示临时提示消息
+    showTemporaryMessage(message) {
+        // 创建临时提示框
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 999999;
+            transition: all 0.3s ease;
+            max-width: 300px;
+            word-wrap: break-word;
+        `;
+        toast.textContent = message;
+        
+        document.body.appendChild(toast);
+        
+        // 3秒后自动消失
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
+    }
+
     // 新增：分析表格方法
     async analyzeTable() {
         this.updateStatus('正在分析表格...', 'warning');
         console.log('🔍 开始分析表格');
+
 
         try {
         const tableData = this.extractTableData();
             
             if (!tableData.tables || tableData.tables.length === 0) {
                 this.updateStatus('未找到表格数据', 'error');
-                this.addMessage('❌ 未在当前页面找到表格。请确保页面包含表格数据。', 'assistant');
+                this.addMessage('❌ 凯尔正在马不停蹄迭代"分析表格"功能，请稍等片刻~~\n\n' +
+                    '技术说明：腾讯表格对第三方API访问有拦截机制，我们正在开发绕过方案。\n\n' +
+                    '当前状态：功能开发中，暂未完全部署。', 'assistant');
                 return;
             }
 
@@ -1806,33 +2613,72 @@ class DeepSeekAssistant {
             if (missingFields.length > 0) {
                 // 按字段分组统计
                 const fieldGroups = {};
+                const companyFieldMap = {}; // 按公司分组缺失字段
+                
                 missingFields.forEach(field => {
+                    // 字段统计
                     if (!fieldGroups[field.fieldName]) {
                         fieldGroups[field.fieldName] = 0;
                     }
                     fieldGroups[field.fieldName]++;
+                    
+                    // 公司字段统计
+                    const company = field.companyContext['公司名称'] || field.companyContext['产品名称'] || '未知公司';
+                    if (!companyFieldMap[company]) {
+                        companyFieldMap[company] = [];
+                    }
+                    companyFieldMap[company].push(field.fieldName);
                 });
                 
                 analysisMessage += `🔍 缺失字段分布：\n`;
                 Object.entries(fieldGroups)
                     .sort(([,a], [,b]) => b - a)
-                    .slice(0, 8)
+                    .slice(0, 10)
                     .forEach(([fieldName, count]) => {
-                        analysisMessage += `• ${fieldName}: ${count} 处\n`;
+                        const percentage = ((count / totalRows) * 100).toFixed(1);
+                        analysisMessage += `• ${fieldName}: ${count} 处 (${percentage}%)\n`;
                     });
                 
-                if (Object.keys(fieldGroups).length > 8) {
-                    analysisMessage += `... 还有其他字段\n`;
+                if (Object.keys(fieldGroups).length > 10) {
+                    analysisMessage += `... 还有 ${Object.keys(fieldGroups).length - 10} 个其他字段\n`;
                 }
                 
-                analysisMessage += `\n🎯 优先补充（按重要性排序）：\n`;
-                missingFields.slice(0, 5).forEach((field, index) => {
-                    const company = field.companyContext['公司名称'] || '未知公司';
-                    analysisMessage += `${index + 1}. ${company} - ${field.fieldName}\n`;
+                analysisMessage += `\n📊 缺失最多的公司：\n`;
+                Object.entries(companyFieldMap)
+                    .sort(([,a], [,b]) => b.length - a.length)
+                    .slice(0, 8)
+                    .forEach(([company, fields], index) => {
+                        const uniqueFields = [...new Set(fields)]; // 去重
+                        analysisMessage += `${index + 1}. ${company}: 缺失 ${uniqueFields.length} 个字段\n`;
+                        if (uniqueFields.length <= 3) {
+                            analysisMessage += `   └ ${uniqueFields.join('、')}\n`;
+                        } else {
+                            analysisMessage += `   └ ${uniqueFields.slice(0, 3).join('、')} 等${uniqueFields.length}个\n`;
+                        }
+                    });
+                
+                // 按字段类型详细分析
+                const criticalFields = ['公司名称', '产品名称', '成立时间', '成立国家', '应用赛道', '细分场景'];
+                const criticalMissing = criticalFields.filter(field => fieldGroups[field] > 0);
+                
+                if (criticalMissing.length > 0) {
+                    analysisMessage += `\n⚠️ 关键字段缺失：\n`;
+                    criticalMissing.forEach(field => {
+                        const count = fieldGroups[field];
+                        const percentage = ((count / totalRows) * 100).toFixed(1);
+                        analysisMessage += `• ${field}: ${count}个公司缺失 (${percentage}%)\n`;
+                    });
+                }
+                
+                analysisMessage += `\n🎯 建议优先处理：\n`;
+                missingFields.slice(0, 10).forEach((field, index) => {
+                    const company = field.companyContext['公司名称'] || field.companyContext['产品名称'] || '未知公司';
+                    const currentValue = field.companyContext[field.fieldName] || '空';
+                    analysisMessage += `${index + 1}. ${company} - "${field.fieldName}" (当前: ${currentValue})\n`;
                 });
                 
-                if (missingFields.length > 5) {
-                    analysisMessage += `... 还有 ${missingFields.length - 5} 个待补充\n`;
+                if (missingFields.length > 10) {
+                    analysisMessage += `... 还有 ${missingFields.length - 10} 个待补充\n`;
                 }
                 
                 analysisMessage += `\n💡 点击"智能补全"开始自动填充！`;
@@ -2273,3 +3119,97 @@ new MutationObserver(() => {
         setTimeout(initDeepSeekAssistant, 1000);
     }
 }).observe(document, { subtree: true, childList: true });
+
+// 全局 Ctrl+Q 快捷键监听器（独立于类初始化）
+/** Ctrl/⌘ + Q 全局快捷键：切换 AI 侧栏显示/隐藏  **************************/
+
+// 避免被重复注入（热更新/多次执行）
+if (!window.__DS_CTRL_Q_BOUND__) {
+    window.__DS_CTRL_Q_BOUND__ = true;
+  
+    // 统一的 CSS 开关：避免被其他样式覆盖（!important）
+    const CSS_ID = 'ds-sidebar-toggle-style';
+    if (!document.getElementById(CSS_ID)) {
+      const style = document.createElement('style');
+      style.id = CSS_ID;
+      style.textContent = `
+        #deepseek-ai-sidebar.ds-hidden { transform: translateX(100%) !important; }
+        #deepseek-ai-sidebar        { transition: transform .25s ease; }
+      `;
+      document.head.appendChild(style);
+    }
+  
+    // 防抖 & 长按防重触发
+    let lastTs = 0;
+    const COOLDOWN = 220; // ms
+  
+    function setButtonSymbol(visible) {
+      const btn = document.getElementById('toggle-sidebar');
+      if (btn) btn.textContent = visible ? '−' : '+';
+    }
+  
+    function toggleSidebarVisibility() {
+      const sidebar = document.getElementById('deepseek-ai-sidebar');
+      if (!sidebar) return false;
+  
+      const willHide = !sidebar.classList.contains('ds-hidden'); // 现在可见→将隐藏
+      sidebar.classList.toggle('ds-hidden', willHide);
+      setButtonSymbol(!willHide);
+  
+      // 记住用户选择，刷新后还原（可选）
+      try {
+        localStorage.setItem('ds_sidebar_hidden', String(willHide));
+      } catch {}
+      return true;
+    }
+  
+    // 初始还原（可选）
+    try {
+      const hidden = localStorage.getItem('ds_sidebar_hidden') === 'true';
+      const sb = document.getElementById('deepseek-ai-sidebar');
+      if (sb) {
+        sb.classList.toggle('ds-hidden', hidden);
+        setButtonSymbol(!hidden);
+      }
+    } catch {}
+  
+    function handleCtrlQ(e) {
+      // 仅在 Ctrl/⌘ + Q 时触发
+      const hit = (e.ctrlKey || e.metaKey) &&
+                  (e.key?.toLowerCase() === 'q' || e.code === 'KeyQ');
+      if (!hit) return;
+  
+      // 过滤输入框/可编辑区域（避免影响正在输入）
+      const target = e.target;
+      const inEditor = target &&
+        (target.closest?.('input, textarea, [contenteditable="true"], [contenteditable=""]'));
+  
+      if (inEditor) return;
+  
+      // 防长按 & 防抖
+      const now = Date.now();
+      if (e.repeat || now - lastTs < COOLDOWN) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      lastTs = now;
+  
+      e.preventDefault();
+      e.stopPropagation();
+  
+      // 先尝试 DOM 切换
+      const ok = toggleSidebarVisibility();
+  
+      // 如果没有找到元素，尝试调用实例方法
+      if (!ok && window.deepseekAssistant?.toggleSidebar) {
+        window.deepseekAssistant.toggleSidebar();
+      }
+    }
+  
+    // 只绑定**一个**捕获型监听器即可（避免多次触发）
+    window.addEventListener('keydown', handleCtrlQ, { capture: true });
+  
+    console.log('✅ 已设置 Ctrl/⌘ + Q 切换侧栏（单监听，防抖，防重复）');
+  }
+  
