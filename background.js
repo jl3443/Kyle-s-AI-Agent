@@ -66,8 +66,8 @@ async function callDeepSeekAPI(messages, apiKey, model = 'deepseek-chat') {
             body: JSON.stringify({
                 model: model,
                 messages: messages,
-                temperature: 0.7,
-                max_tokens: model === 'deepseek-reasoner' ? 200 : 100  // 严格限制token避免费用过高
+                temperature: 0.2,  // 数据提取任务需要精确性，降低随机性
+                max_tokens: model === 'deepseek-reasoner' ? 400 : 350  // 17字段TSV需要足够token，同时控制成本
             })
         });
 

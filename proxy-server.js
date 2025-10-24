@@ -36,8 +36,8 @@ app.post('/api/deepseek', async (req, res) => {
                         content: message
                     }
                 ],
-                temperature: 0.7,
-                max_tokens: model === 'deepseek-reasoner' ? 800 : 500
+                temperature: 0.2,  // 数据提取任务需要精确性，降低随机性
+                max_tokens: model === 'deepseek-reasoner' ? 400 : 350
             })
         });
 

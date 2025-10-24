@@ -36,8 +36,8 @@ export default async function handler(req, res) {
                         content: message
                     }
                 ],
-                temperature: 0.7,
-                max_tokens: 1000
+                temperature: 0.2,  // 数据提取任务需要精确性，降低随机性
+                max_tokens: 350  // 17字段TSV优化后刚好够用，避免浪费
             })
         });
         
