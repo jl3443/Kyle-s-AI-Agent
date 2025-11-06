@@ -1065,9 +1065,20 @@ class DeepSeekAssistant {
             });
             
             if (response.success) {
-                const aiResponse = response.data.choices[0].message.content;
-                console.log('✅ Background script API调用成功');
-                return { content: aiResponse, suggestions: [] };
+                // 防御性检查：确保返回数据完整
+                if (response.data &&
+                    response.data.choices &&
+                    response.data.choices.length > 0 &&
+                    response.data.choices[0].message &&
+                    response.data.choices[0].message.content) {
+
+                    const aiResponse = response.data.choices[0].message.content;
+                    console.log('✅ Background script API调用成功');
+                    return { content: aiResponse, suggestions: [] };
+                } else {
+                    console.error('❌ API响应格式异常:', response.data);
+                    throw new Error('API返回数据格式不正确');
+                }
             } else {
                 throw new Error(response.error);
             }
@@ -2328,11 +2339,26 @@ class DeepSeekAssistant {
         const messagesContainer = document.getElementById('ai-messages');
         const messageDiv = document.createElement('div');
         messageDiv.className = `ai-message ${role}`;
-        
-        // 支持换行和简单格式
-        const formattedContent = content.replace(/\n/g, '<br>');
+
+        // 防御性检查：确保内容有效
+        if (!content || typeof content !== 'string' || content.trim() === '') {
+            console.warn('⚠️ 收到空消息内容，使用默认提示');
+            content = '(AI返回了空消息，请重试)';
+        }
+
+        // 对内容进行HTML转义，防止特殊字符被误解析
+        const escapeHtml = (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+
+        // 转义后再替换换行符
+        const escapedContent = escapeHtml(content);
+        const formattedContent = escapedContent.replace(/\n/g, '<br>');
+
         messageDiv.innerHTML = formattedContent;
-        
+
         messagesContainer.appendChild(messageDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }

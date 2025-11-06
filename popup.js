@@ -63,13 +63,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     saveBtn.disabled = false;
                     saveBtn.textContent = '保存设置';
 
-                    // 通知内容脚本重新初始化
+                    // 通知内容脚本重新初始化（所有页面）
                     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-                        if (tabs[0] && tabs[0].url.includes('docs.qq.com')) {
+                        if (tabs[0]) {
                             chrome.tabs.sendMessage(tabs[0].id, {
                                 type: 'SETTINGS_UPDATED',
                                 apiKey: apiKey,
                                 model: model
+                            }).catch(err => {
+                                console.log('当前页面未加载扩展:', err);
                             });
                         }
                     });
