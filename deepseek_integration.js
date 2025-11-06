@@ -436,7 +436,7 @@ class DeepSeekAssistant {
         // 插入到页面
         document.body.appendChild(sidebar);
 
-        // 默认隐藏侧边栏，只有按 Ctrl+S (Mac: ⌘+S) 时才显示
+        // 默认隐藏侧边栏，只有按 Ctrl+K (Mac: ⌘+K) 时才显示
         sidebar.classList.add('ds-hidden');
 
         console.log('AI侧边栏已创建并添加到页面（默认隐藏）');
@@ -2454,7 +2454,7 @@ class DeepSeekAssistant {
             }
             
             // 显示成功提示
-            this.showTemporaryMessage('✅ AI助手已显示 (⌘+S 切换)');
+            this.showTemporaryMessage('✅ AI助手已显示 (⌘+K 切换)');
             console.log('✅ 显示操作完成');
             
         } else {
@@ -2471,7 +2471,7 @@ class DeepSeekAssistant {
             }
             
             // 显示成功提示
-            this.showTemporaryMessage('✅ AI助手已隐藏 (⌘+S 切换)');
+            this.showTemporaryMessage('✅ AI助手已隐藏 (⌘+K 切换)');
             console.log('✅ 隐藏操作完成');
         }
         
@@ -2994,7 +2994,7 @@ new MutationObserver(() => {
 }).observe(document, { subtree: true, childList: true });
 
 // 全局快捷键监听器（独立于类初始化）
-/** Ctrl/⌘ + S 全局快捷键：切换 AI 侧栏显示/隐藏  **************************/
+/** Ctrl/⌘ + K 全局快捷键：切换 AI 侧栏显示/隐藏  **************************/
 
 // 避免被重复注入（热更新/多次执行）
 if (!window.__DS_CTRL_Q_BOUND__) {
@@ -3049,9 +3049,9 @@ if (!window.__DS_CTRL_Q_BOUND__) {
     } catch {}
   
     function handleCtrlQ(e) {
-      // 仅在 Ctrl/⌘ + S 时触发
+      // 仅在 Ctrl/⌘ + K 时触发
       const hit = (e.ctrlKey || e.metaKey) &&
-                  (e.key?.toLowerCase() === 's' || e.code === 'KeyS');
+                  (e.key?.toLowerCase() === 'k' || e.code === 'KeyK');
       if (!hit) return;
   
       // 过滤输入框/可编辑区域（避免影响正在输入）
@@ -3085,6 +3085,6 @@ if (!window.__DS_CTRL_Q_BOUND__) {
     // 只绑定**一个**捕获型监听器即可（避免多次触发）
     window.addEventListener('keydown', handleCtrlQ, { capture: true });
   
-    console.log('✅ 已设置 Ctrl/⌘ + S 切换侧栏（单监听，防抖，防重复）');
+    console.log('✅ 已设置 Ctrl/⌘ + K 切换侧栏（单监听，防抖，防重复）');
   }
   

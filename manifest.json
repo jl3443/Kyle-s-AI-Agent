@@ -40,8 +40,8 @@
   "commands": {
     "toggle-sidebar": {
       "suggested_key": {
-        "default": "Ctrl+S",
-        "mac": "Command+S"
+        "default": "Ctrl+K",
+        "mac": "Command+K"
       },
       "description": "切换AI助手显示/隐藏"
     }
