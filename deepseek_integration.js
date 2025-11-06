@@ -390,14 +390,7 @@ class DeepSeekAssistant {
                     <button id="auto-fill-btn" class="ai-btn ai-btn-success">
                         🔄 智能补全
                     </button>
-                    <button id="preview-changes-btn" class="ai-btn ai-btn-secondary" disabled>
-                        👀 预览更改
-                    </button>
-                    <button id="apply-changes-btn" class="ai-btn ai-btn-warning" disabled>
-                        ✅ 应用更改
-                    </button>
                 </div>
-                <div id="table-status" class="table-status">就绪</div>
             </div>
             <div class="ai-chat-container">
                 <div class="ai-messages" id="ai-messages">
@@ -407,8 +400,6 @@ class DeepSeekAssistant {
                         <ul>
                             <li>🔍 智能分析表格内容</li>
                             <li>🔄 自动补全缺失信息</li>
-                            <li>👀 预览所有更改</li>
-                            <li>✅ 一键应用修改</li>
                         </ul>
                         <p>请告诉我您想了解什么，或点击表格助手按钮开始！</p>
                     </div>
@@ -444,9 +435,12 @@ class DeepSeekAssistant {
         
         // 插入到页面
         document.body.appendChild(sidebar);
-        
-        console.log('AI侧边栏已创建并添加到页面');
-        
+
+        // 默认隐藏侧边栏，只有按 Ctrl+Q 时才显示
+        sidebar.classList.add('ds-hidden');
+
+        console.log('AI侧边栏已创建并添加到页面（默认隐藏）');
+
         // 验证是否成功添加
         const addedSidebar = document.getElementById('deepseek-ai-sidebar');
         if (addedSidebar) {
@@ -806,33 +800,6 @@ class DeepSeekAssistant {
                 background: #e0a800;
             }
 
-            .table-status {
-                font-size: 12px;
-                color: #666;
-                padding: 6px 10px;
-                background: #fff;
-                border-radius: 4px;
-                border: 1px solid #ddd;
-                text-align: center;
-            }
-
-            .table-status.success {
-                background: #d4edda;
-                color: #155724;
-                border-color: #c3e6cb;
-            }
-
-            .table-status.warning {
-                background: #fff3cd;
-                color: #856404;
-                border-color: #ffeaa7;
-            }
-
-            .table-status.error {
-                background: #f8d7da;
-                color: #721c24;
-                border-color: #f5c6cb;
-            }
 
             .ai-messages ul {
                 margin: 8px 0;
@@ -891,8 +858,6 @@ class DeepSeekAssistant {
         // 新增：表格智能助手按钮事件
         const analyzeBtn = document.getElementById('analyze-table-btn');
         const autoFillBtn = document.getElementById('auto-fill-btn');
-        const previewBtn = document.getElementById('preview-changes-btn');
-        const applyBtn = document.getElementById('apply-changes-btn');
 
         if (analyzeBtn) {
             analyzeBtn.addEventListener('click', () => this.analyzeTable());
@@ -902,13 +867,6 @@ class DeepSeekAssistant {
             autoFillBtn.addEventListener('click', () => this.autoFillTable());
         }
 
-        if (previewBtn) {
-            previewBtn.addEventListener('click', () => this.previewChanges());
-        }
-
-        if (applyBtn) {
-            applyBtn.addEventListener('click', () => this.applyChanges());
-        }
 
         // 监听表格变化（自动分析）
         this.observeTableChanges();
@@ -2741,14 +2699,10 @@ class DeepSeekAssistant {
                 message += `📝 生成建议：${this.pendingChanges.length} 条\n`;
                 message += `🎯 覆盖字段：${new Set(this.pendingChanges.map(c => c.field.fieldName)).size} 种\n`;
                 message += `💡 平均置信度：${(this.pendingChanges.reduce((sum, c) => sum + c.confidence, 0) / this.pendingChanges.length * 100).toFixed(0)}%\n\n`;
-                message += `👀 点击"预览更改"查看详情\n`;
-                message += `✅ 确认无误后点击"应用更改"`;
                 
                 this.addMessage(message, 'assistant');
                 this.updateStatus(`生成 ${this.pendingChanges.length} 条建议`, 'success');
                 
-                document.getElementById('preview-changes-btn').disabled = false;
-                document.getElementById('apply-changes-btn').disabled = false;
             } else {
                 this.addMessage('❌ 未能生成有效建议，请检查API配置或稍后重试。', 'assistant');
                 this.updateStatus('补全失败', 'error');
@@ -2762,97 +2716,7 @@ class DeepSeekAssistant {
         }
     }
 
-    // 新增：预览更改功能
-    previewChanges() {
-        if (this.pendingChanges.length === 0) {
-            this.addMessage('❌ 没有待预览的更改。请先执行"智能补全"。', 'assistant');
-            return;
-        }
 
-        let previewMessage = `👀 预览待应用的更改 (${this.pendingChanges.length}项)：\n\n`;
-        
-        this.pendingChanges.forEach((change, index) => {
-            const field = change.field;
-            const confidence = Math.round(change.confidence * 100);
-            const company = field.companyContext['公司名称'] || '未知公司';
-            
-            previewMessage += `${index + 1}. ${company} - ${field.fieldName}\n`;
-            previewMessage += `   建议值：${change.suggestion}\n`;
-            previewMessage += `   置信度：${confidence}%\n\n`;
-        });
-
-        previewMessage += `✅ 确认无误请点击"应用更改"\n`;
-        previewMessage += `❌ 如需修改请重新执行"智能补全"`;
-
-        this.addMessage(previewMessage, 'assistant');
-        this.updateStatus(`预览 ${this.pendingChanges.length} 项更改`, 'success');
-    }
-
-    // 新增：应用更改功能
-    async applyChanges() {
-        if (this.pendingChanges.length === 0) {
-            this.addMessage('❌ 没有待应用的更改。请先执行"智能补全"。', 'assistant');
-            return;
-        }
-
-        this.updateStatus('正在应用更改...', 'warning');
-        console.log('✅ 开始应用更改');
-
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const change of this.pendingChanges) {
-            try {
-                const cellElement = this.tableEditor.findCellForField(change.field);
-                
-                if (cellElement && this.tableEditor.isCellEditable(cellElement)) {
-                    const success = await this.tableEditor.fillCell(
-                        cellElement, 
-                        change.suggestion
-                    );
-                    
-                    if (success) {
-                        successCount++;
-                        console.log(`✅ 成功填充: ${change.field.fieldName} = ${change.suggestion}`);
-                    } else {
-                        failCount++;
-                        console.log(`❌ 填充失败: ${change.field.fieldName}`);
-                    }
-                } else {
-                    failCount++;
-                    console.log(`❌ 未找到可编辑单元格: ${change.field.fieldName}`);
-                }
-                
-                // 添加延迟避免操作过快
-                await new Promise(resolve => setTimeout(resolve, 200));
-                
-        } catch (error) {
-                failCount++;
-                console.error('应用更改失败:', error);
-            }
-        }
-
-        // 清空待应用的更改
-        this.pendingChanges = [];
-        
-        // 禁用按钮
-        document.getElementById('preview-changes-btn').disabled = true;
-        document.getElementById('apply-changes-btn').disabled = true;
-
-        // 显示结果
-        const resultMessage = `🎉 更改应用完成！\n\n` +
-            `✅ 成功：${successCount} 项\n` +
-            `❌ 失败：${failCount} 项\n\n` +
-            `💡 如需继续补充，请重新点击"分析表格"`;
-
-        this.addMessage(resultMessage, 'assistant');
-        
-        if (failCount === 0) {
-            this.updateStatus(`全部应用成功 (${successCount}项)`, 'success');
-        } else {
-            this.updateStatus(`部分成功 (${successCount}/${successCount + failCount})`, 'warning');
-        }
-    }
 
     // 新增：生成字段建议
     async generateFieldSuggestion(missingField) {
@@ -2933,11 +2797,6 @@ ${Object.entries(context).map(([key, value]) => `${key}: ${value}`).join('\n')}
 
     // 新增：更新状态显示
     updateStatus(message, type = 'info') {
-        const statusElement = document.getElementById('table-status');
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.className = `table-status ${type}`;
-        }
         console.log(`状态: ${message}`);
     }
 
@@ -3153,7 +3012,9 @@ if (!window.__DS_CTRL_Q_BOUND__) {
   
     // 初始还原（可选）
     try {
-      const hidden = localStorage.getItem('ds_sidebar_hidden') === 'true';
+      const storedValue = localStorage.getItem('ds_sidebar_hidden');
+      // 如果 localStorage 中没有值，默认隐藏（null 或 undefined）
+      const hidden = storedValue === null ? true : storedValue === 'true';
       const sb = document.getElementById('deepseek-ai-sidebar');
       if (sb) {
         sb.classList.toggle('ds-hidden', hidden);
