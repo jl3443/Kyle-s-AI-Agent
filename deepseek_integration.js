@@ -454,17 +454,27 @@ AlphaSense	5星	-	资产管理	投研助手	华尔街级AI语义检索引擎	201
                 apiKey: this.apiKey,
                 model: this.model
             }, (response) => {
+                console.log('📦 收到background响应:', response);
+
                 if (chrome.runtime.lastError) {
+                    console.error('❌ Chrome runtime错误:', chrome.runtime.lastError);
                     reject(new Error(chrome.runtime.lastError.message));
-                } else if (response.success) {
+                } else if (response && response.success) {
+                    console.log('✅ API调用成功，解析数据...');
+                    console.log('📊 response.data:', response.data);
+
                     const content = response.data?.choices?.[0]?.message?.content;
+                    console.log('📝 提取的content:', content);
+
                     if (content) {
                         resolve(content);
                     } else {
+                        console.error('❌ 无法提取content，数据结构:', JSON.stringify(response.data));
                         reject(new Error('API返回数据格式不正确'));
                     }
                 } else {
-                    reject(new Error(response.error || '未知错误'));
+                    console.error('❌ API调用失败:', response);
+                    reject(new Error(response?.error || '未知错误'));
                 }
             });
         });
