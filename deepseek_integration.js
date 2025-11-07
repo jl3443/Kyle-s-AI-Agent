@@ -411,7 +411,7 @@ class DeepSeekAssistant {
     // 调用DeepSeek API
     async callAPI(userMessage) {
         // 智能系统提示词：支持普通对话和金融产品分析
-        const systemPrompt = `你是Kyle's AI Agent，智能助手。
+        const systemPrompt = `你是Kyle's AI Agent，一个金融AI产品分析助手。
 
 **核心能力**：
 1. 友好对话：回答问题、闲聊、提供帮助
