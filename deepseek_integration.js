@@ -901,12 +901,6 @@ class DeepSeekAssistant {
         // 显示用户消息
         this.addMessage(message, 'user');
         input.value = '';
-        
-        // 🚨 临时调试：如果用户只发了简单消息，清空对话历史避免误导
-        if (message.length <= 2) {
-            console.log('⚠️ 检测到简单消息，清空对话历史避免误导');
-            this.conversationHistory = [];
-        }
 
         // 显示思考指示器
         this.showThinkingIndicator();
