@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "DeepSeek AI 智能助手 (LangChain版)",
+  "version": "2.0.0",
+  "description": "基于LangChain和React的通用DeepSeek AI智能助手",
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' https://unpkg.com; object-src 'self'; connect-src 'self' https://api.deepseek.com https://unpkg.com;"
+  },
+  
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": [
+        "knowledge_base.js",
+        "langchain-adapter.js",
+        "react-components.jsx",
+        "deepseek_integration_langchain.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DeepSeek AI助手设置"
+  },
+  
+  "background": {
+    "service_worker": "background.js"
+  },
+  
+  "commands": {
+    "toggle-sidebar": {
+      "suggested_key": {
+        "default": "Ctrl+K",
+        "mac": "Command+K"
+      },
+      "description": "切换AI助手显示/隐藏"
+    }
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["*.js", "*.jsx"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ]
+}
+
