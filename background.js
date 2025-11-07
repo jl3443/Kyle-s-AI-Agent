@@ -77,6 +77,13 @@ async function callDeepSeekAPI(messages, apiKey, model = 'deepseek-chat') {
 
         const data = await response.json();
         console.log('✅ DeepSeek API调用成功');
+        console.log('📊 API返回数据结构:', {
+            hasChoices: !!data.choices,
+            choicesLength: data.choices?.length,
+            hasMessage: !!data.choices?.[0]?.message,
+            hasContent: !!data.choices?.[0]?.message?.content,
+            contentPreview: data.choices?.[0]?.message?.content?.substring(0, 50)
+        });
         return data;
     } catch (error) {
         console.error('❌ DeepSeek API调用失败:', error);
